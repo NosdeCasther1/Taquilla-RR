@@ -66,4 +66,5 @@ enum OrderStatus {
   PENDIENTE
   ENTREGADO
   CANCELADO
+  AGOTADO
 }

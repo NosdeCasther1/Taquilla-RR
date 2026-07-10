@@ -15,6 +15,7 @@ type Resumen = {
   pending: number;
   delivered: number;
   cancelled: number;
+  soldOut: number;
   byMenu: { menuName: string; count: number; total: number }[];
 };
 
@@ -48,6 +49,7 @@ export default function ResumenPage() {
         { label: "Pendientes", value: String(data.pending) },
         { label: "Entregados", value: String(data.delivered) },
         { label: "Cancelados", value: String(data.cancelled) },
+        { label: "Agotados", value: String(data.soldOut) },
       ]
     : [];
 
@@ -113,7 +115,7 @@ export default function ResumenPage() {
         <p className="py-8 text-center text-sm text-muted-foreground">Cargando resumen...</p>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
             {stats.map((s) => (
               <Card key={s.label}>
                 <CardContent className="p-4">

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
-import { History, StickyNote, Users, XCircle } from "lucide-react";
+import { AlertTriangle, History, PackageX, StickyNote, Users, XCircle } from "lucide-react";
 import { ActionDialog } from "@/components/ui/action-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ type OrderReceipt = {
   row: string;
   grupo: number;
   notes: string | null;
-  status: "PENDIENTE" | "ENTREGADO" | "CANCELADO";
+  status: "PENDIENTE" | "ENTREGADO" | "CANCELADO" | "AGOTADO";
   deliveredAt: string | null;
   cancelledAt: string | null;
   createdAt: string;
@@ -39,7 +39,9 @@ function statusBadge(status: OrderReceipt["status"]) {
     case "ENTREGADO":
       return <Badge variant="success">Entregado</Badge>;
     case "CANCELADO":
-      return <Badge variant="secondary">Cancelado</Badge>;
+      return <Badge variant="secondary">Anulado</Badge>;
+    case "AGOTADO":
+      return <Badge variant="destructive">Agotado</Badge>;
   }
 }
 
@@ -47,12 +49,31 @@ export default function PedidoReciboPage({ params }: { params: { id: string } })
   const [cancelling, setCancelling] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const lastStatusRef = useRef<OrderReceipt["status"] | null>(null);
 
   const { data: order, error, isLoading, mutate } = useSWR<OrderReceipt>(
     `/api/orders/${params.id}`,
     fetcher,
     { refreshInterval: 4000 }
   );
+
+  useEffect(() => {
+    if (!order) return;
+    const previous = lastStatusRef.current;
+    lastStatusRef.current = order.status;
+
+    if (previous === "PENDIENTE" && (order.status === "CANCELADO" || order.status === "AGOTADO")) {
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        new Notification("Actualizacion de pedido - Taquilla RR", {
+          body:
+            order.status === "AGOTADO"
+              ? `${order.menuName} esta agotado.`
+              : `Tu pedido de ${order.menuName} fue anulado.`,
+          tag: `order-status-${order.id}`,
+        });
+      }
+    }
+  }, [order]);
 
   async function handleCancel() {
     setCancelling(true);
@@ -103,6 +124,28 @@ export default function PedidoReciboPage({ params }: { params: { id: string } })
             {statusBadge(order.status)}
           </div>
 
+          {order.status === "AGOTADO" && (
+            <div className="flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive">
+              <PackageX className="mt-0.5 h-5 w-5 shrink-0" />
+              <div>
+                <p className="font-semibold">Producto agotado</p>
+                <p className="text-sm">
+                  El staff marco este combo como agotado. Por favor elige otro combo o consulta en taquilla.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {order.status === "CANCELADO" && (
+            <div className="flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+              <div>
+                <p className="font-semibold">Pedido anulado</p>
+                <p className="text-sm">Este pedido fue anulado y ya no contara como venta.</p>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-hidden rounded-lg border">
             <MenuImage
               src={order.menuImageUrl}
@@ -132,7 +175,7 @@ export default function PedidoReciboPage({ params }: { params: { id: string } })
           <p className="text-xs text-muted-foreground">
             Pedido a las {hora(order.createdAt)}
             {order.deliveredAt && ` - entregado ${hora(order.deliveredAt)}`}
-            {order.cancelledAt && ` - cancelado ${hora(order.cancelledAt)}`}
+            {order.cancelledAt && ` - cerrado ${hora(order.cancelledAt)}`}
           </p>
 
           {order.status === "PENDIENTE" && (

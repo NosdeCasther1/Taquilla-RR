@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { BottomNav } from "@/components/bottom-nav";
 import { AppBrand } from "@/components/app-brand";
 import { LogoutButton } from "@/components/logout-button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -20,6 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <span className="max-w-[140px] truncate text-sm text-muted-foreground">
               {session.user.name}
             </span>
+            <ThemeToggle />
             <LogoutButton />
           </div>
         </div>

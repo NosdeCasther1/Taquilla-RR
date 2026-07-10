@@ -19,7 +19,7 @@ type OrderSummary = {
   customerName: string;
   row: string;
   grupo: number;
-  status: "PENDIENTE" | "ENTREGADO" | "CANCELADO";
+  status: "PENDIENTE" | "ENTREGADO" | "CANCELADO" | "AGOTADO";
   deliveredAt: string | null;
   cancelledAt: string | null;
   createdAt: string;
@@ -38,7 +38,9 @@ function statusBadge(status: OrderSummary["status"]) {
     case "ENTREGADO":
       return <Badge variant="success">Entregado</Badge>;
     case "CANCELADO":
-      return <Badge variant="secondary">Cancelado</Badge>;
+      return <Badge variant="secondary">Anulado</Badge>;
+    case "AGOTADO":
+      return <Badge variant="destructive">Agotado</Badge>;
   }
 }
 

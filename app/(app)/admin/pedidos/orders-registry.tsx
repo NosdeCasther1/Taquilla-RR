@@ -17,14 +17,14 @@ type OrderRow = {
   customerName: string;
   row: string;
   grupo: number;
-  status: "PENDIENTE" | "ENTREGADO" | "CANCELADO";
+  status: "PENDIENTE" | "ENTREGADO" | "CANCELADO" | "AGOTADO";
   createdAt: string;
   deliveredAt: string | null;
   cancelledAt: string | null;
   deliveredByName: string | null;
 };
 
-type StatusFilter = "TODOS" | "PENDIENTE" | "ENTREGADO" | "CANCELADO";
+type StatusFilter = "TODOS" | "PENDIENTE" | "ENTREGADO" | "CANCELADO" | "AGOTADO";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -52,7 +52,8 @@ function hora(iso: string) {
 function statusLabel(s: OrderRow["status"]) {
   if (s === "PENDIENTE") return "Pendiente";
   if (s === "ENTREGADO") return "Entregado";
-  return "Cancelado";
+  if (s === "AGOTADO") return "Agotado";
+  return "Anulado";
 }
 
 function exportCsv(rows: OrderRow[]) {
@@ -106,15 +107,16 @@ export function OrdersRegistry() {
     return filtered.reduce(
       (acc, order) => {
         acc.orders += 1;
-        if (order.status !== "CANCELADO") {
+        if (order.status !== "CANCELADO" && order.status !== "AGOTADO") {
           acc.sales += order.price;
         }
         if (order.status === "PENDIENTE") acc.pending += 1;
         if (order.status === "ENTREGADO") acc.delivered += 1;
         if (order.status === "CANCELADO") acc.cancelled += 1;
+        if (order.status === "AGOTADO") acc.soldOut += 1;
         return acc;
       },
-      { orders: 0, sales: 0, pending: 0, delivered: 0, cancelled: 0 }
+      { orders: 0, sales: 0, pending: 0, delivered: 0, cancelled: 0, soldOut: 0 }
     );
   }, [filtered]);
 
@@ -122,7 +124,8 @@ export function OrdersRegistry() {
     { value: "TODOS", label: "Todos" },
     { value: "PENDIENTE", label: "Pendientes" },
     { value: "ENTREGADO", label: "Entregados" },
-    { value: "CANCELADO", label: "Cancelados" },
+    { value: "CANCELADO", label: "Anulados" },
+    { value: "AGOTADO", label: "Agotados" },
   ];
 
   return (
@@ -189,7 +192,7 @@ export function OrdersRegistry() {
               Limpiar
             </Button>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             {filters.map((f) => (
               <button
                 key={f.value}
@@ -205,7 +208,7 @@ export function OrdersRegistry() {
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
             <div className="rounded-md border bg-background p-3">
               <p className="text-xs text-muted-foreground">Pedidos</p>
               <p className="text-xl font-bold">{totals.orders}</p>
@@ -223,8 +226,12 @@ export function OrdersRegistry() {
               <p className="text-xl font-bold">{totals.delivered}</p>
             </div>
             <div className="rounded-md border bg-background p-3">
-              <p className="text-xs text-muted-foreground">Cancelados</p>
+              <p className="text-xs text-muted-foreground">Anulados</p>
               <p className="text-xl font-bold">{totals.cancelled}</p>
+            </div>
+            <div className="rounded-md border bg-background p-3">
+              <p className="text-xs text-muted-foreground">Agotados</p>
+              <p className="text-xl font-bold">{totals.soldOut}</p>
             </div>
           </div>
           <Button
@@ -278,7 +285,9 @@ export function OrdersRegistry() {
                             ? "warning"
                             : o.status === "ENTREGADO"
                               ? "success"
-                              : "secondary"
+                              : o.status === "AGOTADO"
+                                ? "destructive"
+                                : "secondary"
                         }
                       >
                         {statusLabel(o.status)}

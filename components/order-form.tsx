@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import useSWR from "swr";
-import { Check, CheckCircle2 } from "lucide-react";
+import { Check, CheckCircle2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MenuImage } from "@/components/menu-image";
 import { cn, formatQ } from "@/lib/utils";
 
@@ -19,18 +19,19 @@ export type MenuOption = {
   imageUrl: string | null;
 };
 
-export type OrderFormValues = {
-  menuId: string;
+export type OrderFormSuccess = {
+  ids: string[];
+  orders: {
+    id: string;
+    menuId: string;
+    menuName: string;
+    price: number;
+  }[];
+  totalPrice: number;
   customerName: string;
   row: string;
   grupo: number;
   notes: string;
-};
-
-export type OrderFormSuccess = OrderFormValues & {
-  id: string;
-  menuName: string;
-  price: number;
 };
 
 type OrderFormProps = {
@@ -50,7 +51,7 @@ export function OrderForm({
 }: OrderFormProps) {
   const { data: menus, isLoading } = useSWR<MenuOption[]>("/api/menus?active=1", fetcher);
 
-  const [menuId, setMenuId] = useState("");
+  const [menuIds, setMenuIds] = useState<string[]>([]);
   const [customerName, setCustomerName] = useState("");
   const [row, setRow] = useState("");
   const [grupo, setGrupo] = useState("");
@@ -59,23 +60,34 @@ export function OrderForm({
   const [success, setSuccess] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const selectedMenu = menus?.find((m) => m.id === menuId);
+  const selectedMenus = useMemo(
+    () => menuIds.map((id) => menus?.find((menu) => menu.id === id)).filter(Boolean) as MenuOption[],
+    [menuIds, menus]
+  );
+  const totalPrice = selectedMenus.reduce((sum, menu) => sum + menu.price, 0);
   const grupoNum = Number(grupo);
   const isFormValid =
-    !!menuId &&
+    menuIds.length > 0 &&
     customerName.trim().length > 0 &&
     row.trim().length > 0 &&
     grupo.trim().length > 0 &&
     Number.isInteger(grupoNum) &&
     grupoNum > 0;
 
+  function toggleMenu(id: string) {
+    setMenuIds((current) =>
+      current.includes(id) ? current.filter((menuId) => menuId !== id) : [...current, id]
+    );
+    setError(null);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSuccess(null);
 
-    if (!menuId) {
-      setError("Selecciona un menú");
+    if (menuIds.length === 0) {
+      setError("Selecciona al menos un combo");
       return;
     }
     if (!customerName.trim()) {
@@ -87,7 +99,7 @@ export function OrderForm({
       return;
     }
     if (!grupo.trim() || !Number.isInteger(grupoNum) || grupoNum < 1) {
-      setError("El grupo es obligatorio y debe ser un número mayor a 0");
+      setError("El grupo es obligatorio y debe ser un numero mayor a 0");
       return;
     }
 
@@ -97,7 +109,7 @@ export function OrderForm({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        menuId,
+        menuIds,
         customerName: customerName.trim(),
         row: row.trim(),
         grupo: grupoNum,
@@ -114,26 +126,33 @@ export function OrderForm({
     }
 
     const body = await res.json();
+    const orders = (body.orders ?? []).map(
+      (order: { id: string; menuId: string; menuName: string; price: number }) => ({
+        id: order.id,
+        menuId: order.menuId,
+        menuName: order.menuName,
+        price: order.price,
+      })
+    );
     const payload: OrderFormSuccess = {
-      id: body.id,
-      menuId,
+      ids: body.ids ?? orders.map((order: { id: string }) => order.id),
+      orders,
+      totalPrice: body.totalPrice ?? totalPrice,
       customerName: customerName.trim(),
       row: row.trim(),
       grupo: grupoNum,
       notes: notes.trim(),
-      menuName: selectedMenu?.name ?? body.menuName ?? "",
-      price: selectedMenu?.price ?? body.price ?? 0,
     };
 
     if (showInlineSuccess) {
       setSuccess(
-        `Pedido de ${customerName} (fila ${row}, grupo ${grupoNum}) registrado por ${formatQ(selectedMenu?.price ?? 0)}.`
+        `${payload.ids.length} ${payload.ids.length === 1 ? "pedido registrado" : "pedidos registrados"} por ${formatQ(payload.totalPrice)}.`
       );
     }
 
     onSubmitted?.(payload);
 
-    setMenuId("");
+    setMenuIds([]);
     setCustomerName("");
     setRow("");
     setGrupo("");
@@ -149,24 +168,24 @@ export function OrderForm({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label>
-              Elige tu menú <span className="text-destructive">*</span>
+              Elige tus combos <span className="text-destructive">*</span>
             </Label>
             {isLoading && (
-              <p className="py-4 text-center text-sm text-muted-foreground">Cargando menús…</p>
+              <p className="py-4 text-center text-sm text-muted-foreground">Cargando menus...</p>
             )}
             {!isLoading && menus?.length === 0 && (
               <p className="py-4 text-center text-sm text-muted-foreground">
-                No hay menús disponibles.
+                No hay menus disponibles.
               </p>
             )}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
               {menus?.map((menu) => {
-                const selected = menuId === menu.id;
+                const selected = menuIds.includes(menu.id);
                 return (
                   <button
                     key={menu.id}
                     type="button"
-                    onClick={() => setMenuId(menu.id)}
+                    onClick={() => toggleMenu(menu.id)}
                     className={cn(
                       "relative overflow-hidden rounded-xl border bg-card text-left transition-all",
                       selected
@@ -195,6 +214,32 @@ export function OrderForm({
             </div>
           </div>
 
+          {selectedMenus.length > 0 && (
+            <div className="space-y-2 rounded-md border bg-background p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold">Seleccionados</p>
+                <p className="text-sm font-bold text-primary">{formatQ(totalPrice)}</p>
+              </div>
+              <ul className="space-y-2">
+                {selectedMenus.map((menu) => (
+                  <li key={menu.id} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="min-w-0 truncate">{menu.name}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 text-muted-foreground"
+                      onClick={() => toggleMenu(menu.id)}
+                    >
+                      <X className="h-4 w-4" />
+                      Quitar
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="customerName">
               Tu nombre <span className="text-destructive">*</span>
@@ -203,7 +248,7 @@ export function OrderForm({
               id="customerName"
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="Ej. María López"
+              placeholder="Ej. Maria Lopez"
               required
               autoComplete="name"
             />
@@ -246,7 +291,7 @@ export function OrderForm({
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ej. sin jalapeños, gaseosa de naranja…"
+              placeholder="Ej. sin jalapenos, gaseosa de naranja..."
               rows={2}
             />
           </div>
@@ -255,19 +300,18 @@ export function OrderForm({
             <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
           )}
           {success && (
-            <p className="flex items-start gap-2 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
+            <p className="flex items-start gap-2 rounded-md bg-green-900/30 px-3 py-2 text-sm text-green-300">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
               {success}
             </p>
           )}
 
-          <Button
-            type="submit"
-            className="w-full"
-            size="lg"
-            disabled={saving || !isFormValid}
-          >
-            {saving ? "Enviando…" : submitLabel}
+          <Button type="submit" className="w-full" size="lg" disabled={saving || !isFormValid}>
+            {saving
+              ? "Enviando..."
+              : menuIds.length > 1
+                ? `${submitLabel} (${menuIds.length})`
+                : submitLabel}
           </Button>
         </form>
       </CardContent>

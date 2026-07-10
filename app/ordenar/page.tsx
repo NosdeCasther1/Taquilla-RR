@@ -17,8 +17,8 @@ export default function OrdenarPage() {
   }, []);
 
   function handleSubmitted(data: OrderFormSuccess) {
-    saveOrderToHistory(data.id);
-    router.push(`/pedido/${data.id}`);
+    [...data.ids].reverse().forEach((id) => saveOrderToHistory(id));
+    router.push(data.ids.length === 1 ? `/pedido/${data.ids[0]}` : "/mis-pedidos");
   }
 
   return (

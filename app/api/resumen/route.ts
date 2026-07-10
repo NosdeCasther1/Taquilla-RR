@@ -19,11 +19,14 @@ export async function GET(request: Request) {
   }
 
   const dateFilter = createdAt ? { createdAt } : {};
-  const notCancelled = { ...dateFilter, status: { not: OrderStatus.CANCELADO } };
+  const countsAsSale = {
+    ...dateFilter,
+    status: { notIn: [OrderStatus.CANCELADO, OrderStatus.AGOTADO] },
+  };
 
   const [totals, byStatus, byMenu] = await Promise.all([
     prisma.order.aggregate({
-      where: notCancelled,
+      where: countsAsSale,
       _count: { id: true },
       _sum: { price: true },
     }),
@@ -34,7 +37,7 @@ export async function GET(request: Request) {
     }),
     prisma.order.groupBy({
       by: ["menuId"],
-      where: notCancelled,
+      where: countsAsSale,
       _count: { id: true },
       _sum: { price: true },
       orderBy: { _sum: { price: "desc" } },
@@ -47,7 +50,7 @@ export async function GET(request: Request) {
   });
   const menuName = new Map(menus.map((m) => [m.id, m.name]));
 
-  const statusCount = (status: "PENDIENTE" | "ENTREGADO" | "CANCELADO") =>
+  const statusCount = (status: "PENDIENTE" | "ENTREGADO" | "CANCELADO" | "AGOTADO") =>
     byStatus.find((s) => s.status === status)?._count.id ?? 0;
 
   return NextResponse.json({
@@ -56,6 +59,7 @@ export async function GET(request: Request) {
     pending: statusCount("PENDIENTE"),
     delivered: statusCount("ENTREGADO"),
     cancelled: statusCount("CANCELADO"),
+    soldOut: statusCount("AGOTADO"),
     byMenu: byMenu.map((m) => ({
       menuName: menuName.get(m.menuId) ?? "(menu eliminado)",
       count: m._count.id,

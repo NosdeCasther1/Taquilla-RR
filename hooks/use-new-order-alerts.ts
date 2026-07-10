@@ -8,7 +8,7 @@ type OrderAlert = {
   customerName: string;
   row: string;
   grupo: number;
-  status: "PENDIENTE" | "ENTREGADO" | "CANCELADO";
+  status: "PENDIENTE" | "ENTREGADO" | "CANCELADO" | "AGOTADO";
 };
 
 const BASE_TITLE = "Taquilla RR";

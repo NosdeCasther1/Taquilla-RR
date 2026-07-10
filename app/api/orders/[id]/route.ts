@@ -1,11 +1,11 @@
+import { OrderStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { OrderStatus } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const patchSchema = z.object({
-  status: z.enum(["PENDIENTE", "ENTREGADO", "CANCELADO"]),
+  status: z.enum(["PENDIENTE", "ENTREGADO", "CANCELADO", "AGOTADO"]),
 });
 
 function serializeOrder(o: {
@@ -39,7 +39,6 @@ function serializeOrder(o: {
   };
 }
 
-/** GET /api/orders/[id] — recibo público del pedido (polling desde /pedido/[id]). */
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   const order = await prisma.order.findUnique({
     where: { id: params.id },
@@ -56,14 +55,11 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   return NextResponse.json(serializeOrder(order));
 }
 
-/** PATCH /api/orders/[id]
- *  - Cliente (sin sesión): solo PENDIENTE → CANCELADO.
- *  - Staff: ENTREGADO (registra deliveredById/deliveredAt) o revertir a PENDIENTE. */
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const session = await auth();
   const parsed = patchSchema.safeParse(await request.json());
   if (!parsed.success) {
-    return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
+    return NextResponse.json({ error: "Estado invalido" }, { status: 400 });
   }
 
   const order = await prisma.order.findUnique({ where: { id: params.id } });
@@ -71,7 +67,6 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
   }
 
-  // --- Cliente anula su pedido ---
   if (!session?.user) {
     if (parsed.data.status !== "CANCELADO" || order.status !== OrderStatus.PENDIENTE) {
       return NextResponse.json({ error: "No permitido" }, { status: 403 });
@@ -86,11 +81,6 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       },
     });
     return NextResponse.json(serializeOrder(updated));
-  }
-
-  // --- Staff ---
-  if (parsed.data.status === "CANCELADO") {
-    return NextResponse.json({ error: "Solo el cliente puede cancelar" }, { status: 403 });
   }
 
   if (parsed.data.status === "ENTREGADO") {
@@ -112,16 +102,41 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json(serializeOrder(updated));
   }
 
-  // Revertir a PENDIENTE
-  if (order.status !== OrderStatus.ENTREGADO) {
-    return NextResponse.json({ error: "Solo se pueden revertir pedidos entregados" }, { status: 400 });
+  if (parsed.data.status === "CANCELADO" || parsed.data.status === "AGOTADO") {
+    if (order.status !== OrderStatus.PENDIENTE) {
+      return NextResponse.json({ error: "Solo se pueden anular pedidos pendientes" }, { status: 400 });
+    }
+    const updated = await prisma.order.update({
+      where: { id: params.id },
+      data: {
+        status: parsed.data.status,
+        cancelledAt: new Date(),
+        deliveredAt: null,
+        deliveredById: null,
+      },
+      include: {
+        menu: { select: { name: true, imageUrl: true } },
+        deliveredBy: { select: { name: true } },
+      },
+    });
+    return NextResponse.json(serializeOrder(updated));
   }
+
+  if (
+    order.status !== OrderStatus.ENTREGADO &&
+    order.status !== OrderStatus.CANCELADO &&
+    order.status !== OrderStatus.AGOTADO
+  ) {
+    return NextResponse.json({ error: "Solo se pueden revertir pedidos cerrados" }, { status: 400 });
+  }
+
   const updated = await prisma.order.update({
     where: { id: params.id },
     data: {
       status: OrderStatus.PENDIENTE,
       deliveredAt: null,
       deliveredById: null,
+      cancelledAt: null,
     },
     include: {
       menu: { select: { name: true, imageUrl: true } },
