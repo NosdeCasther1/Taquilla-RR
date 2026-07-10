@@ -1,36 +1,123 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Taquilla RR
 
-## Getting Started
+Sistema de comandas para el evento **Noche de Cine**. Los asistentes piden desde su celular **sin cuenta ni login**; el staff recibe alertas, prepara y entrega en la fila/grupo indicado.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Next.js 14** (App Router) + TypeScript
+- **Prisma** conectado a **TiDB** (MySQL-compatible)
+- **Auth.js (NextAuth v5)** con Credentials Provider — solo login de staff
+- **Tailwind CSS + shadcn/ui**, diseño mobile-first
+- **SWR** con polling cada 4 segundos en la cola de pedidos y el resumen
+
+## Flujo del evento
+
+1. **Asistentes** abren `/ordenar` en su celular (enlace o código QR en pantalla/proyección).
+2. Eligen menú, escriben nombre, fila y grupo, y envían — **sin registrarse**.
+3. **Staff** mantiene abierta `/pedidos` en su celular (logueado):
+   - Suena un beep cuando entra un pedido nuevo.
+   - Las tarjetas nuevas se resaltan hasta que las tocan o pasan ~60 s.
+   - El título de la pestaña muestra `(3) Taquilla RR` con el número de pendientes.
+   - Opcional: notificaciones del sistema si activan el permiso del navegador.
+4. El staff marca **Entregar** al llevar el combo al asiento.
+
+**Respaldo:** `/pedido` (solo staff) permite capturar manualmente si alguien no puede usar `/ordenar`.
+
+## Vistas
+
+| Ruta | Descripción | Acceso |
+|---|---|---|
+| `/ordenar` | Formulario público para que los asistentes pidan desde su asiento | **Público** |
+| `/login` | Login de staff | Público |
+| `/pedidos` | Cola con alertas, filtros y botón de entregar | Staff |
+| `/pedido` | Captura manual de respaldo | Staff |
+| `/resumen` | Totales y ventas por menú | Staff |
+| `/admin/menus` | CRUD de menús | Solo ADMIN |
+
+## Compartir el enlace / QR para asistentes
+
+### En local (pruebas)
+
+```
+http://localhost:3000/ordenar
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### En producción (Vercel)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Tras el deploy, la URL pública será:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+https://TU-DOMINIO.vercel.app/ordenar
+```
 
-## Learn More
+### Generar código QR
 
-To learn more about Next.js, take a look at the following resources:
+1. Copia la URL de `/ordenar` (local o producción).
+2. Usa cualquier generador de QR gratuito, por ejemplo:
+   - [qr-code-generator.com](https://www.qr-code-generator.com/)
+   - La app **Cámara** de iPhone o **Google Lens** en Android (pega el enlace).
+3. Descarga el PNG/SVG e imprímelo o muéstralo en pantalla al inicio del evento.
+4. Texto sugerido para la diapositiva:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+   > **¿Quieres palomitas o nachos?**  
+   > Escanea el QR y pide desde tu asiento.  
+   > No necesitas app ni cuenta.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Tips para el evento
 
-## Deploy on Vercel
+- Proyecta el QR grande antes de que empiece la película.
+- El staff debe tener `/pedidos` abierto **antes** de que empiecen a llegar pedidos (así el navegador permite sonido y notificaciones tras un toque).
+- Si el sonido no suena la primera vez, toca la pantalla una vez (política de autoplay del navegador).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Desarrollo local
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm install
+cp .env.example .env   # completa DATABASE_URL y AUTH_SECRET
+npm run db:push
+npm run db:seed
+npm run dev
+```
+
+- Staff: `http://localhost:3000/login` → `admin@taquilla.local` / `admin123`
+- Asistentes: `http://localhost:3000/ordenar`
+
+## Despliegue en Vercel
+
+1. Clúster en [TiDB Cloud](https://tidbcloud.com) con `?sslaccept=strict` en la URL.
+2. Importa el repo en Vercel.
+3. Variables de entorno:
+
+   | Variable | Valor |
+   |---|---|
+   | `DATABASE_URL` | Cadena TiDB |
+   | `AUTH_SECRET` | Secreto aleatorio |
+   | `AUTH_URL` | `https://TU-DOMINIO.vercel.app` |
+
+4. Deploy (`build` ejecuta `prisma db push` automáticamente).
+5. Seed una vez: `npm run db:seed` con el `DATABASE_URL` de producción.
+6. Comparte `https://TU-DOMINIO.vercel.app/ordenar` o su QR.
+
+## Seguridad de rutas
+
+| Ruta / endpoint | Acceso |
+|---|---|
+| `GET /ordenar` | Público |
+| `POST /api/orders` | Público (crear pedido) |
+| `GET /api/menus?active=1` | Público (menús para ordenar) |
+| `GET /api/orders`, `PATCH /api/orders/[id]` | Solo staff |
+| `/pedidos`, `/resumen`, `/admin/*`, `/pedido` | Solo staff |
+
+## Modelo de datos
+
+- **StaffUser**: `email`, `password` (bcrypt), rol `STAFF` / `ADMIN`.
+- **Menu**: nombre, descripción, precio, `active`.
+- **Order**: precio congelado al crear, datos del asistente (`customerName`, `row`, `grupo` opcional, `notes`), `status`, `deliveredAt`, `deliveredById` (staff que entregó).
+
+## Crear más usuarios de staff
+
+```ts
+import bcrypt from "bcryptjs";
+const password = await bcrypt.hash("la-contraseña", 10);
+// prisma.staffUser.create({ data: { email, name, password, role: "STAFF" } })
+```

@@ -1,0 +1,69 @@
+// Taquilla RR — schema de datos
+// TiDB es MySQL-compatible: usamos provider "mysql".
+// relationMode = "prisma" evita depender de foreign keys físicas.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+model StaffUser {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String // hash con bcrypt
+  role      Role     @default(STAFF)
+  createdAt DateTime @default(now())
+
+  // Relación inversa requerida por Prisma para Order.deliveredBy
+  orders Order[]
+}
+
+enum Role {
+  STAFF
+  ADMIN
+}
+
+model Menu {
+  id          String  @id @default(cuid())
+  name        String
+  description String
+  price       Decimal @db.Decimal(10, 2)
+  // Data URL (base64) o URL externa. LongText para caber fotos comprimidas.
+  imageUrl    String? @db.LongText
+  active      Boolean @default(true)
+  orders      Order[]
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  customerName  String
+  row           String
+  grupo         Int
+  notes         String?
+  status        OrderStatus @default(PENDIENTE)
+  menu          Menu        @relation(fields: [menuId], references: [id])
+  menuId        String
+  price         Decimal     @db.Decimal(10, 2) // precio congelado al momento del pedido
+  // El pedido lo crea el propio asistente; el staff solo lo entrega.
+  deliveredBy   StaffUser?  @relation(fields: [deliveredById], references: [id])
+  deliveredById String?
+  createdAt     DateTime    @default(now())
+  deliveredAt   DateTime?
+  cancelledAt   DateTime?
+
+  @@index([menuId])
+  @@index([deliveredById])
+  @@index([status, createdAt])
+}
+
+enum OrderStatus {
+  PENDIENTE
+  ENTREGADO
+  CANCELADO
+}
