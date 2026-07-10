@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
+import { setOperationOpen } from "@/lib/operation";
 import { prisma } from "@/lib/prisma";
 
 const updateSchema = z.object({
@@ -68,6 +69,18 @@ export async function PATCH(request: Request, { params }: { params: { id: string
           parsed.data.imageUrl === undefined ? undefined : parsed.data.imageUrl || null,
       },
     });
+
+    if (parsed.data.active === true) {
+      await setOperationOpen(true);
+    }
+
+    if (parsed.data.active === false) {
+      const activeMenus = await prisma.menu.count({ where: { active: true } });
+      if (activeMenus === 0) {
+        await setOperationOpen(false);
+      }
+    }
+
     return NextResponse.json({ ...updated, price: Number(updated.price) });
   } catch (e) {
     console.error("PATCH /api/menus/[id]", e);
@@ -93,5 +106,11 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
   }
 
   await prisma.menu.delete({ where: { id: params.id } });
+
+  const activeMenus = await prisma.menu.count({ where: { active: true } });
+  if (activeMenus === 0) {
+    await setOperationOpen(false);
+  }
+
   return NextResponse.json({ ok: true });
 }

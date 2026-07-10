@@ -9,6 +9,12 @@ const operationSchema = z.object({
   open: z.boolean(),
 });
 
+export const dynamic = "force-dynamic";
+
+const noStoreHeaders = {
+  "Cache-Control": "no-store, max-age=0",
+};
+
 export async function GET() {
   const [operation, activeMenus, pendingOrders] = await Promise.all([
     getOperationStatus(),
@@ -16,11 +22,14 @@ export async function GET() {
     prisma.order.count({ where: { status: OrderStatus.PENDIENTE } }),
   ]);
 
-  return NextResponse.json({
-    ...operation,
-    activeMenus,
-    pendingOrders,
-  });
+  return NextResponse.json(
+    {
+      ...operation,
+      activeMenus,
+      pendingOrders,
+    },
+    { headers: noStoreHeaders }
+  );
 }
 
 export async function PATCH(request: Request) {
@@ -38,8 +47,11 @@ export async function PATCH(request: Request) {
   }
 
   const setting = await setOperationOpen(parsed.data.open);
-  return NextResponse.json({
-    open: setting.value === "1",
-    updatedAt: setting.updatedAt,
-  });
+  return NextResponse.json(
+    {
+      open: setting.value === "1",
+      updatedAt: setting.updatedAt,
+    },
+    { headers: noStoreHeaders }
+  );
 }

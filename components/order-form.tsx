@@ -48,7 +48,7 @@ type OperationStatus = {
   updatedAt: string | null;
 };
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((r) => r.json());
 
 export function OrderForm({
   title,
