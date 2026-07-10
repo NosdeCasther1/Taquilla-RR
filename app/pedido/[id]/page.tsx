@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { AlertTriangle, History, PackageX, StickyNote, Users, XCircle } from "lucide-react";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MenuImage } from "@/components/menu-image";
+import { getOrderIds } from "@/lib/order-storage";
 import { formatQ } from "@/lib/utils";
 
 type OrderReceipt = {
@@ -26,7 +27,7 @@ type OrderReceipt = {
   createdAt: string;
 };
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((r) => r.json());
 
 function hora(iso: string) {
   return new Date(iso).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" });
@@ -49,6 +50,7 @@ export default function PedidoReciboPage({ params }: { params: { id: string } })
   const [cancelling, setCancelling] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [orderIds, setOrderIds] = useState<string[]>([]);
   const lastStatusRef = useRef<OrderReceipt["status"] | null>(null);
 
   const { data: order, error, isLoading, mutate } = useSWR<OrderReceipt>(
@@ -56,6 +58,17 @@ export default function PedidoReciboPage({ params }: { params: { id: string } })
     fetcher,
     { refreshInterval: 4000 }
   );
+  const historyUrl = useMemo(() => {
+    if (orderIds.length === 0) return null;
+    return `/api/orders/mine?ids=${orderIds.join(",")}`;
+  }, [orderIds]);
+  const { data: historyOrders } = useSWR<OrderReceipt[]>(historyUrl, fetcher, {
+    refreshInterval: 8000,
+  });
+
+  useEffect(() => {
+    setOrderIds(getOrderIds());
+  }, []);
 
   useEffect(() => {
     if (!order) return;
@@ -74,6 +87,20 @@ export default function PedidoReciboPage({ params }: { params: { id: string } })
       }
     }
   }, [order]);
+
+  const accountOrders = useMemo(() => {
+    if (!order) return [];
+    const source = historyOrders?.length ? historyOrders : [order];
+    return source.filter(
+      (item) =>
+        item.customerName.trim().toLowerCase() === order.customerName.trim().toLowerCase() &&
+        item.row.trim().toLowerCase() === order.row.trim().toLowerCase() &&
+        item.grupo === order.grupo &&
+        item.status !== "CANCELADO" &&
+        item.status !== "AGOTADO"
+    );
+  }, [historyOrders, order]);
+  const accountTotal = accountOrders.reduce((sum, item) => sum + item.price, 0);
 
   async function handleCancel() {
     setCancelling(true);
@@ -155,6 +182,19 @@ export default function PedidoReciboPage({ params }: { params: { id: string } })
             <div className="p-3">
               <p className="font-semibold">{order.menuName}</p>
               <p className="text-sm font-bold text-primary">{formatQ(order.price)}</p>
+            </div>
+          </div>
+
+          <div className="rounded-md border bg-background p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm text-muted-foreground">Total a pagar al finalizar</p>
+                <p className="text-xs text-muted-foreground">
+                  {accountOrders.length} pedido{accountOrders.length === 1 ? "" : "s"} activo
+                  {accountOrders.length === 1 ? "" : "s"} para este hermano
+                </p>
+              </div>
+              <p className="text-xl font-bold text-primary">{formatQ(accountTotal)}</p>
             </div>
           </div>
 

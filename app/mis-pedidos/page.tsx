@@ -25,7 +25,16 @@ type OrderSummary = {
   createdAt: string;
 };
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+type AccountSummary = {
+  key: string;
+  customerName: string;
+  row: string;
+  grupo: number;
+  orders: number;
+  total: number;
+};
+
+const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((r) => r.json());
 
 function hora(iso: string) {
   return new Date(iso).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" });
@@ -44,6 +53,10 @@ function statusBadge(status: OrderSummary["status"]) {
   }
 }
 
+function accountKey(order: Pick<OrderSummary, "customerName" | "row" | "grupo">) {
+  return `${order.customerName.trim().toLowerCase()}|${order.row.trim().toLowerCase()}|${order.grupo}`;
+}
+
 export default function MisPedidosPage() {
   const [orderIds, setOrderIds] = useState<string[]>([]);
 
@@ -59,6 +72,34 @@ export default function MisPedidosPage() {
   const { data: orders, isLoading } = useSWR<OrderSummary[]>(url, fetcher, {
     refreshInterval: 8000,
   });
+
+  const billableOrders = useMemo(
+    () => (orders ?? []).filter((order) => order.status !== "CANCELADO" && order.status !== "AGOTADO"),
+    [orders]
+  );
+  const totalDue = billableOrders.reduce((sum, order) => sum + order.price, 0);
+  const accounts = useMemo(() => {
+    const grouped = new Map<string, AccountSummary>();
+
+    for (const order of billableOrders) {
+      const key = accountKey(order);
+      const current =
+        grouped.get(key) ??
+        {
+          key,
+          customerName: order.customerName,
+          row: order.row,
+          grupo: order.grupo,
+          orders: 0,
+          total: 0,
+        };
+      current.orders += 1;
+      current.total += order.price;
+      grouped.set(key, current);
+    }
+
+    return Array.from(grouped.values()).sort((a, b) => b.total - a.total);
+  }, [billableOrders]);
 
   return (
     <div className="space-y-4">
@@ -94,6 +135,37 @@ export default function MisPedidosPage() {
             <Button asChild>
               <Link href="/ordenar">Hacer un pedido</Link>
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {orderIds.length > 0 && !isLoading && orders && orders.length > 0 && (
+        <Card>
+          <CardContent className="space-y-3 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm text-muted-foreground">Total a pagar al finalizar</p>
+                <p className="text-2xl font-bold text-primary">{formatQ(totalDue)}</p>
+              </div>
+              <Badge variant="success">{billableOrders.length} activos</Badge>
+            </div>
+            <div className="space-y-2">
+              {accounts.map((account) => (
+                <div
+                  key={account.key}
+                  className="flex items-center justify-between gap-3 rounded-md border bg-background px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{account.customerName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Fila {account.row} - Grupo {account.grupo} - {account.orders} pedido
+                      {account.orders === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <p className="shrink-0 font-bold">{formatQ(account.total)}</p>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}

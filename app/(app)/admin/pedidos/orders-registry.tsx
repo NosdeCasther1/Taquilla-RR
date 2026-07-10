@@ -26,6 +26,20 @@ type OrderRow = {
 
 type StatusFilter = "TODOS" | "PENDIENTE" | "ENTREGADO" | "CANCELADO" | "AGOTADO";
 
+type AccountSummary = {
+  key: string;
+  customerName: string;
+  row: string;
+  grupo: number;
+  orders: number;
+  billableOrders: number;
+  total: number;
+  pending: number;
+  delivered: number;
+  cancelled: number;
+  soldOut: number;
+};
+
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 function todayValue() {
@@ -80,6 +94,10 @@ function exportCsv(rows: OrderRow[]) {
   URL.revokeObjectURL(url);
 }
 
+function accountKey(order: Pick<OrderRow, "customerName" | "row" | "grupo">) {
+  return `${order.customerName.trim().toLowerCase()}|${order.row.trim().toLowerCase()}|${order.grupo}`;
+}
+
 export function OrdersRegistry() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("TODOS");
@@ -118,6 +136,43 @@ export function OrdersRegistry() {
       },
       { orders: 0, sales: 0, pending: 0, delivered: 0, cancelled: 0, soldOut: 0 }
     );
+  }, [filtered]);
+
+  const accounts = useMemo(() => {
+    const grouped = new Map<string, AccountSummary>();
+
+    for (const order of filtered) {
+      const key = accountKey(order);
+      const current =
+        grouped.get(key) ??
+        {
+          key,
+          customerName: order.customerName,
+          row: order.row,
+          grupo: order.grupo,
+          orders: 0,
+          billableOrders: 0,
+          total: 0,
+          pending: 0,
+          delivered: 0,
+          cancelled: 0,
+          soldOut: 0,
+        };
+
+      current.orders += 1;
+      if (order.status !== "CANCELADO" && order.status !== "AGOTADO") {
+        current.billableOrders += 1;
+        current.total += order.price;
+      }
+      if (order.status === "PENDIENTE") current.pending += 1;
+      if (order.status === "ENTREGADO") current.delivered += 1;
+      if (order.status === "CANCELADO") current.cancelled += 1;
+      if (order.status === "AGOTADO") current.soldOut += 1;
+
+      grouped.set(key, current);
+    }
+
+    return Array.from(grouped.values()).sort((a, b) => b.total - a.total);
   }, [filtered]);
 
   const filters: { value: StatusFilter; label: string }[] = [
@@ -208,7 +263,7 @@ export function OrdersRegistry() {
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-7">
             <div className="rounded-md border bg-background p-3">
               <p className="text-xs text-muted-foreground">Pedidos</p>
               <p className="text-xl font-bold">{totals.orders}</p>
@@ -216,6 +271,10 @@ export function OrdersRegistry() {
             <div className="rounded-md border bg-background p-3">
               <p className="text-xs text-muted-foreground">Ventas</p>
               <p className="text-xl font-bold text-primary">{formatQ(totals.sales)}</p>
+            </div>
+            <div className="rounded-md border bg-background p-3">
+              <p className="text-xs text-muted-foreground">Cuentas</p>
+              <p className="text-xl font-bold">{accounts.length}</p>
             </div>
             <div className="rounded-md border bg-background p-3">
               <p className="text-xs text-muted-foreground">Pendientes</p>
@@ -243,6 +302,51 @@ export function OrdersRegistry() {
             <Download className="h-4 w-4" />
             Exportar CSV ({filtered.length})
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Cuentas por hermano</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {isLoading && <p className="text-sm text-muted-foreground">Calculando cuentas...</p>}
+          {!isLoading && accounts.length === 0 && (
+            <p className="text-sm text-muted-foreground">No hay cuentas para cobrar.</p>
+          )}
+          <div className="grid gap-3 md:grid-cols-2">
+            {accounts.map((account) => (
+              <div key={account.key} className="rounded-md border bg-background p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{account.customerName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Fila {account.row} - Grupo {account.grupo}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-lg font-bold text-primary">{formatQ(account.total)}</p>
+                </div>
+                <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
+                  <div className="rounded border bg-card px-2 py-1">
+                    <span className="block font-semibold">{account.billableOrders}</span>
+                    <span className="text-muted-foreground">Cobrar</span>
+                  </div>
+                  <div className="rounded border bg-card px-2 py-1">
+                    <span className="block font-semibold">{account.pending}</span>
+                    <span className="text-muted-foreground">Pend.</span>
+                  </div>
+                  <div className="rounded border bg-card px-2 py-1">
+                    <span className="block font-semibold">{account.delivered}</span>
+                    <span className="text-muted-foreground">Ent.</span>
+                  </div>
+                  <div className="rounded border bg-card px-2 py-1">
+                    <span className="block font-semibold">{account.cancelled + account.soldOut}</span>
+                    <span className="text-muted-foreground">Fuera</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
