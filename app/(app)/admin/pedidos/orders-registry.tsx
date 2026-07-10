@@ -554,7 +554,7 @@ export function OrdersRegistry() {
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold">
-                    Detalle del cobro: {selectedAccounts.length} cuenta
+                    {selectedAccounts.length} cuenta
                     {selectedAccounts.length === 1 ? "" : "s"} seleccionada
                     {selectedAccounts.length === 1 ? "" : "s"}
                   </p>
@@ -588,37 +588,6 @@ export function OrdersRegistry() {
                     Cobrar seleccionadas
                   </Button>
                 </div>
-              </div>
-              <div className="mt-3 max-h-56 space-y-3 overflow-y-auto rounded-md border bg-card p-3">
-                {selectedAccounts.map((account) => (
-                  <div key={account.key} className="space-y-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold">{account.customerName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {account.locations.join(" | ")}
-                        </p>
-                      </div>
-                      <p className="shrink-0 text-sm font-bold text-primary">
-                        {formatQ(account.pendingTotal)}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      {account.pendingItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className="flex items-center justify-between gap-3 rounded border bg-background px-2 py-1.5 text-xs"
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate font-medium">{item.menuName}</p>
-                            <p className="text-muted-foreground">{item.location}</p>
-                          </div>
-                          <p className="shrink-0 font-semibold">{formatQ(item.price)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           )}
