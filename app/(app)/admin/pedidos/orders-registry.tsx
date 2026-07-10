@@ -506,7 +506,7 @@ export function OrdersRegistry() {
                         type="button"
                         disabled={account.pendingTotal === 0}
                         onClick={() => toggleSelectedAccount(account)}
-                        className={`h-5 w-5 shrink-0 rounded border text-xs font-bold ${
+                        className={`hidden ${
                           selected
                             ? "border-primary bg-primary text-primary-foreground"
                             : "border-border"
