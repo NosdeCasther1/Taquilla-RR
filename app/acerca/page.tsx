@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Code2, HeartHandshake, Info, Sparkles } from "lucide-react";
+import { ArrowLeft, Code2, HeartHandshake, Sparkles } from "lucide-react";
 import { AppBrand } from "@/components/app-brand";
 import { PublicHeader } from "@/components/public-header";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const credits = {
   appName: "Taquilla RR",
-  developedBy: "Rey de Reyes / Abiel - Embajadores de Cristo",
+  developedBy: "Ingeniero Edson Castillo",
   purpose: "Sistema de pedidos creado para apoyar la atencion durante Noche de Cine.",
 };
 
@@ -49,17 +49,12 @@ export default function AcercaPage() {
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <Button asChild className="flex-1">
-                <Link href="/ordenar">Ordenar</Link>
-              </Button>
-              <Button asChild variant="outline" className="flex-1">
-                <Link href="/login">
-                  <Info className="h-4 w-4" />
-                  Staff
-                </Link>
-              </Button>
-            </div>
+            <Button asChild className="w-full">
+              <Link href="/pedidos">
+                <ArrowLeft className="h-4 w-4" />
+                Volver al sistema
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       </main>
