@@ -22,13 +22,10 @@ const updateSchema = z.object({
     ),
 });
 
-async function requireAdmin() {
+async function requireStaff() {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
-  if (session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Requiere rol ADMIN" }, { status: 403 });
   }
   return null;
 }
@@ -36,7 +33,7 @@ async function requireAdmin() {
 /** PATCH /api/menus/[id] — editar nombre, precio o estado. Solo ADMIN.
  *  Los pedidos existentes no cambian: guardan su propio snapshot de precio. */
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
-  const denied = await requireAdmin();
+  const denied = await requireStaff();
   if (denied) return denied;
 
   const parsed = updateSchema.safeParse(await request.json());
@@ -81,7 +78,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 /** DELETE /api/menus/[id] — eliminar menú. Solo ADMIN.
  *  Si el menú ya tiene pedidos, se bloquea (hay que desactivarlo en su lugar). */
 export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
-  const denied = await requireAdmin();
+  const denied = await requireStaff();
   if (denied) return denied;
 
   const ordersCount = await prisma.order.count({ where: { menuId: params.id } });

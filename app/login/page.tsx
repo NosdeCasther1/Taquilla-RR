@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { Popcorn } from "lucide-react";
+import { AppBrand } from "@/components/app-brand";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,9 +39,7 @@ export default function LoginPage() {
     <div className="flex min-h-dvh items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <Popcorn className="h-6 w-6 text-primary" />
-          </div>
+          <AppBrand size="lg" showTitle={false} className="mb-2 justify-center" />
           <CardTitle className="text-xl">Taquilla RR</CardTitle>
           <CardDescription>Noche de Cine — acceso para staff</CardDescription>
         </CardHeader>

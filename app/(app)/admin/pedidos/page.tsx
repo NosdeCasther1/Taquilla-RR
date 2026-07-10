@@ -4,7 +4,7 @@ import { OrdersRegistry } from "./orders-registry";
 
 export default async function AdminPedidosPage() {
   const session = await auth();
-  if (session?.user.role !== "ADMIN") {
+  if (!session?.user) {
     redirect("/pedidos");
   }
 

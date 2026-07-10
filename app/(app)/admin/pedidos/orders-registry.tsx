@@ -85,6 +85,22 @@ export function OrdersRegistry() {
     });
   }, [orders, search, statusFilter]);
 
+  const totals = useMemo(() => {
+    return filtered.reduce(
+      (acc, order) => {
+        acc.orders += 1;
+        if (order.status !== "CANCELADO") {
+          acc.sales += order.price;
+        }
+        if (order.status === "PENDIENTE") acc.pending += 1;
+        if (order.status === "ENTREGADO") acc.delivered += 1;
+        if (order.status === "CANCELADO") acc.cancelled += 1;
+        return acc;
+      },
+      { orders: 0, sales: 0, pending: 0, delivered: 0, cancelled: 0 }
+    );
+  }, [filtered]);
+
   const filters: { value: StatusFilter; label: string }[] = [
     { value: "TODOS", label: "Todos" },
     { value: "PENDIENTE", label: "Pendientes" },
@@ -123,6 +139,28 @@ export function OrdersRegistry() {
                 {f.label}
               </button>
             ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+            <div className="rounded-md border bg-background p-3">
+              <p className="text-xs text-muted-foreground">Pedidos</p>
+              <p className="text-xl font-bold">{totals.orders}</p>
+            </div>
+            <div className="rounded-md border bg-background p-3">
+              <p className="text-xs text-muted-foreground">Ventas</p>
+              <p className="text-xl font-bold text-primary">{formatQ(totals.sales)}</p>
+            </div>
+            <div className="rounded-md border bg-background p-3">
+              <p className="text-xs text-muted-foreground">Pendientes</p>
+              <p className="text-xl font-bold">{totals.pending}</p>
+            </div>
+            <div className="rounded-md border bg-background p-3">
+              <p className="text-xs text-muted-foreground">Entregados</p>
+              <p className="text-xl font-bold">{totals.delivered}</p>
+            </div>
+            <div className="rounded-md border bg-background p-3">
+              <p className="text-xs text-muted-foreground">Cancelados</p>
+              <p className="text-xl font-bold">{totals.cancelled}</p>
+            </div>
           </div>
           <Button
             variant="outline"

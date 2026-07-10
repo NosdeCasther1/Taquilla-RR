@@ -7,5 +7,5 @@ export default NextAuth(authConfig).auth;
 
 export const config = {
   // Protege todo excepto los endpoints de auth, estáticos e imágenes.
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|logos|icon).*)"],
 };

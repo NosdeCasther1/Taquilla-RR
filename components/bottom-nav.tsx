@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PlusCircle, ClipboardList, BarChart3, UtensilsCrossed, ListOrdered } from "lucide-react";
+import {
+  BarChart3,
+  ClipboardList,
+  ListOrdered,
+  PlusCircle,
+  Users,
+  UtensilsCrossed,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
@@ -12,18 +19,19 @@ const items = [
 ];
 
 const adminItems = [
-  { href: "/admin/menus", label: "Menús", icon: UtensilsCrossed },
+  { href: "/admin/menus", label: "Menus", icon: UtensilsCrossed },
   { href: "/admin/pedidos", label: "Registro", icon: ListOrdered },
+  { href: "/admin/usuarios", label: "Usuarios", icon: Users },
 ];
 
-export function BottomNav({ isAdmin }: { isAdmin: boolean }) {
+export function BottomNav() {
   const pathname = usePathname();
-  const navItems = isAdmin ? [...items, ...adminItems] : items;
+  const navItems = [...items, ...adminItems];
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-card pb-[env(safe-area-inset-bottom)]">
       <div
-        className="mx-auto grid max-w-md"
+        className="mx-auto grid max-w-md md:max-w-3xl"
         style={{ gridTemplateColumns: `repeat(${navItems.length}, 1fr)` }}
       >
         {navItems.map(({ href, label, icon: Icon }) => {

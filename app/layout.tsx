@@ -10,7 +10,11 @@ const geistSans = localFont({
 
 export const metadata: Metadata = {
   title: "Taquilla RR",
-  description: "Sistema de comandas para Noche de Cine",
+  description: "Sistema de comandas para Noche de Cine — Rey de Reyes",
+  icons: {
+    icon: "/logos/rey-de-reyes.png",
+    apple: "/logos/abiel.png",
+  },
 };
 
 export const viewport: Viewport = {

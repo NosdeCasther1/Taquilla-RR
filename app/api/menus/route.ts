@@ -43,10 +43,6 @@ export async function POST(request: Request) {
   if (!session?.user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
-  if (session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Requiere rol ADMIN" }, { status: 403 });
-  }
-
   const parsed = menuSchema.safeParse(await request.json());
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });

@@ -132,8 +132,8 @@ export function MenusManager() {
   }
 
   return (
-    <div className="space-y-4">
-      <Card>
+    <div className="space-y-4 lg:grid lg:grid-cols-[380px_1fr] lg:gap-4 lg:space-y-0">
+      <Card className="lg:self-start">
         <CardHeader>
           <CardTitle>{editing ? "Editar menú" : "Nuevo menú"}</CardTitle>
         </CardHeader>
