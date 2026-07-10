@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { OrderStatus } from "@prisma/client";
 import { auth } from "@/lib/auth";
+import { getDateRangeFromRequest } from "@/lib/date-range";
 import { prisma } from "@/lib/prisma";
 
 const orderSchema = z.object({
@@ -23,12 +24,22 @@ export async function GET(request: Request) {
   }
 
   const status = new URL(request.url).searchParams.get("status");
-  const where =
-    status === OrderStatus.PENDIENTE ||
+  let createdAt: ReturnType<typeof getDateRangeFromRequest>;
+  try {
+    createdAt = getDateRangeFromRequest(request);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Fecha invalida";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+
+  const where = {
+    ...(status === OrderStatus.PENDIENTE ||
     status === OrderStatus.ENTREGADO ||
     status === OrderStatus.CANCELADO
       ? { status }
-      : undefined;
+      : {}),
+    ...(createdAt ? { createdAt } : {}),
+  };
 
   const orders = await prisma.order.findMany({
     where,

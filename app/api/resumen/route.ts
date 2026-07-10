@@ -1,16 +1,25 @@
 import { OrderStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getDateRangeFromRequest } from "@/lib/date-range";
 import { prisma } from "@/lib/prisma";
 
-/** GET /api/resumen — totales (excluye cancelados de ventas). */
-export async function GET() {
+export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const notCancelled = { status: { not: OrderStatus.CANCELADO } };
+  let createdAt: ReturnType<typeof getDateRangeFromRequest>;
+  try {
+    createdAt = getDateRangeFromRequest(request);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Fecha invalida";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+
+  const dateFilter = createdAt ? { createdAt } : {};
+  const notCancelled = { ...dateFilter, status: { not: OrderStatus.CANCELADO } };
 
   const [totals, byStatus, byMenu] = await Promise.all([
     prisma.order.aggregate({
@@ -20,6 +29,7 @@ export async function GET() {
     }),
     prisma.order.groupBy({
       by: ["status"],
+      where: dateFilter,
       _count: { id: true },
     }),
     prisma.order.groupBy({
@@ -31,7 +41,6 @@ export async function GET() {
     }),
   ]);
 
-  // El nombre del menú ya no se guarda en el pedido: se resuelve por relación.
   const menus = await prisma.menu.findMany({
     where: { id: { in: byMenu.map((m) => m.menuId) } },
     select: { id: true, name: true },
@@ -48,7 +57,7 @@ export async function GET() {
     delivered: statusCount("ENTREGADO"),
     cancelled: statusCount("CANCELADO"),
     byMenu: byMenu.map((m) => ({
-      menuName: menuName.get(m.menuId) ?? "(menú eliminado)",
+      menuName: menuName.get(m.menuId) ?? "(menu eliminado)",
       count: m._count.id,
       total: Number(m._sum.price ?? 0),
     })),

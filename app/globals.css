@@ -4,6 +4,29 @@
 
 @layer base {
   :root {
+    color-scheme: dark;
+    --background: 240 10% 6%;
+    --foreground: 0 0% 96%;
+    --card: 240 9% 10%;
+    --card-foreground: 0 0% 96%;
+    --primary: 0 78% 56%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 6% 16%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 240 6% 14%;
+    --muted-foreground: 240 5% 68%;
+    --accent: 240 6% 18%;
+    --accent-foreground: 0 0% 96%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 6% 20%;
+    --input: 240 6% 23%;
+    --ring: 0 78% 56%;
+    --radius: 0.75rem;
+  }
+
+  .light {
+    color-scheme: light;
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
@@ -21,7 +44,6 @@
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
     --ring: 0 72% 42%;
-    --radius: 0.75rem;
   }
 }
 
@@ -29,7 +51,20 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
+  }
+
+  input,
+  textarea,
+  select {
+    color-scheme: dark;
+  }
+
+  .light input,
+  .light textarea,
+  .light select {
+    color-scheme: light;
   }
 }

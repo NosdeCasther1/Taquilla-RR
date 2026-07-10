@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import useSWR from "swr";
-import { Download, Search } from "lucide-react";
+import { CalendarDays, Download, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatQ } from "@/lib/utils";
@@ -26,6 +27,18 @@ type OrderRow = {
 type StatusFilter = "TODOS" | "PENDIENTE" | "ENTREGADO" | "CANCELADO";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+function todayValue() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Guatemala" });
+}
+
+function buildDateQuery(from: string, to: string) {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
 
 function hora(iso: string) {
   return new Date(iso).toLocaleString("es-GT", {
@@ -67,9 +80,13 @@ function exportCsv(rows: OrderRow[]) {
 }
 
 export function OrdersRegistry() {
-  const { data: orders, isLoading } = useSWR<OrderRow[]>("/api/orders", fetcher);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("TODOS");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+
+  const dateQuery = useMemo(() => buildDateQuery(from, to), [from, to]);
+  const { data: orders, isLoading } = useSWR<OrderRow[]>(`/api/orders${dateQuery}`, fetcher);
 
   const filtered = useMemo(() => {
     if (!orders) return [];
@@ -123,6 +140,54 @@ export function OrdersRegistry() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="orders-from">Desde</Label>
+              <Input
+                id="orders-from"
+                type="date"
+                value={from}
+                max={to || undefined}
+                onChange={(e) => setFrom(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="orders-to">Hasta</Label>
+              <Input
+                id="orders-to"
+                type="date"
+                value={to}
+                min={from || undefined}
+                onChange={(e) => setTo(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const today = todayValue();
+                setFrom(today);
+                setTo(today);
+              }}
+            >
+              <CalendarDays className="h-4 w-4" />
+              Hoy
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!from && !to}
+              onClick={() => {
+                setFrom("");
+                setTo("");
+              }}
+            >
+              <X className="h-4 w-4" />
+              Limpiar
+            </Button>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {filters.map((f) => (
