@@ -33,6 +33,12 @@ type AccountSummary = {
   key: string;
   customerName: string;
   locations: string[];
+  pendingItems: {
+    id: string;
+    menuName: string;
+    location: string;
+    price: number;
+  }[];
   orders: number;
   billableOrders: number;
   total: number;
@@ -90,8 +96,29 @@ function statusLabel(s: OrderRow["status"]) {
   return "Anulado";
 }
 
+function auditText(name: string | null, iso: string | null) {
+  if (!iso) return "Pendiente";
+  return name ?? "Sin registro";
+}
+
+function auditTime(iso: string | null) {
+  return iso ? hora(iso) : null;
+}
+
 function exportCsv(rows: OrderRow[]) {
-  const header = ["Nombre", "Menú", "Fila", "Grupo", "Precio", "Hora", "Estado", "Entregado por"];
+  const header = [
+    "Nombre",
+    "Menu",
+    "Fila",
+    "Grupo",
+    "Precio",
+    "Hora",
+    "Estado",
+    "Entregado por",
+    "Hora entrega",
+    "Cobrado por",
+    "Hora cobro",
+  ];
   const lines = rows.map((r) => [
     r.customerName,
     r.menuName,
@@ -100,7 +127,10 @@ function exportCsv(rows: OrderRow[]) {
     String(r.price),
     hora(r.createdAt),
     statusLabel(r.status),
-    r.deliveredByName ?? "",
+    auditText(r.deliveredByName, r.deliveredAt),
+    auditTime(r.deliveredAt) ?? "",
+    auditText(r.paidByName, r.paidAt),
+    auditTime(r.paidAt) ?? "",
   ]);
   const csv = [header, ...lines]
     .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
@@ -185,6 +215,7 @@ export function OrdersRegistry() {
           key,
           customerName: order.customerName,
           locations: [],
+          pendingItems: [],
           orders: 0,
           billableOrders: 0,
           total: 0,
@@ -214,6 +245,12 @@ export function OrdersRegistry() {
         } else {
           current.pendingTotal += order.price;
           current.pendingOrderIds.push(order.id);
+          current.pendingItems.push({
+            id: order.id,
+            menuName: order.menuName,
+            location,
+            price: order.price,
+          });
         }
       }
       if (order.status === "PENDIENTE") current.pending += 1;
@@ -428,41 +465,75 @@ export function OrdersRegistry() {
             <p className="text-sm text-muted-foreground">No hay cuentas para cobrar.</p>
           )}
           {selectedAccounts.length > 0 && (
-            <div className="flex flex-col gap-2 rounded-md border bg-background p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold">
-                  {selectedAccounts.length} cuenta{selectedAccounts.length === 1 ? "" : "s"} seleccionada
-                  {selectedAccounts.length === 1 ? "" : "s"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Total a cobrar en efectivo: {formatQ(selectedPendingTotal)}
-                </p>
+            <div className="rounded-md border bg-background p-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold">
+                    Detalle del cobro: {selectedAccounts.length} cuenta
+                    {selectedAccounts.length === 1 ? "" : "s"} seleccionada
+                    {selectedAccounts.length === 1 ? "" : "s"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Total a cobrar en efectivo: {formatQ(selectedPendingTotal)}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:flex">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setSelectedAccountKeys([])}
+                  >
+                    Limpiar
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={selectedPendingOrderIds.length === 0}
+                    onClick={() =>
+                      openPayment({
+                        label:
+                          selectedAccounts.length === 1
+                            ? selectedAccounts[0].customerName
+                            : `${selectedAccounts.length} cuentas seleccionadas`,
+                        pendingTotal: selectedPendingTotal,
+                        pendingOrderIds: selectedPendingOrderIds,
+                      })
+                    }
+                  >
+                    <Banknote className="h-4 w-4" />
+                    Cobrar seleccionadas
+                  </Button>
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:flex">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setSelectedAccountKeys([])}
-                >
-                  Limpiar
-                </Button>
-                <Button
-                  type="button"
-                  disabled={selectedPendingOrderIds.length === 0}
-                  onClick={() =>
-                    openPayment({
-                      label:
-                        selectedAccounts.length === 1
-                          ? selectedAccounts[0].customerName
-                          : `${selectedAccounts.length} cuentas seleccionadas`,
-                      pendingTotal: selectedPendingTotal,
-                      pendingOrderIds: selectedPendingOrderIds,
-                    })
-                  }
-                >
-                  <Banknote className="h-4 w-4" />
-                  Cobrar seleccionadas
-                </Button>
+              <div className="mt-3 max-h-56 space-y-3 overflow-y-auto rounded-md border bg-card p-3">
+                {selectedAccounts.map((account) => (
+                  <div key={account.key} className="space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">{account.customerName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {account.locations.join(" | ")}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-sm font-bold text-primary">
+                        {formatQ(account.pendingTotal)}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      {account.pendingItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between gap-3 rounded border bg-background px-2 py-1.5 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{item.menuName}</p>
+                            <p className="text-muted-foreground">{item.location}</p>
+                          </div>
+                          <p className="shrink-0 font-semibold">{formatQ(item.price)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -594,7 +665,7 @@ export function OrdersRegistry() {
             <p className="p-4 text-sm text-muted-foreground">No hay pedidos que coincidan.</p>
           )}
           <div className="max-h-[56vh] overflow-auto">
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="w-full min-w-[760px] text-sm">
               <thead className="sticky top-0 z-10">
                 <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
                   <th className="p-3 font-medium">Nombre</th>
@@ -603,6 +674,7 @@ export function OrdersRegistry() {
                   <th className="p-3 font-medium">Hora</th>
                   <th className="p-3 font-medium">Estado</th>
                   <th className="p-3 font-medium">Entregó</th>
+                  <th className="p-3 font-medium">Cobró</th>
                 </tr>
               </thead>
               <tbody>
@@ -612,11 +684,6 @@ export function OrdersRegistry() {
                     <td className="p-3">
                       {o.menuName}
                       <span className="block text-xs text-muted-foreground">{formatQ(o.price)}</span>
-                      {o.paidAt && (
-                        <span className="block text-xs text-green-500">
-                          Pagado efectivo{o.paidByName ? ` por ${o.paidByName}` : ""}
-                        </span>
-                      )}
                     </td>
                     <td className="p-3">
                       Fila {o.row} · G{o.grupo}
@@ -637,7 +704,20 @@ export function OrdersRegistry() {
                         {statusLabel(o.status)}
                       </Badge>
                     </td>
-                    <td className="p-3 text-muted-foreground">{o.deliveredByName ?? "—"}</td>
+                    <td className="p-3 text-muted-foreground">
+                      <span className="block font-medium text-foreground">
+                        {auditText(o.deliveredByName, o.deliveredAt)}
+                      </span>
+                      {o.deliveredAt && (
+                        <span className="block text-xs">{auditTime(o.deliveredAt)}</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-muted-foreground">
+                      <span className={o.paidAt ? "block font-medium text-green-500" : "block"}>
+                        {auditText(o.paidByName, o.paidAt)}
+                      </span>
+                      {o.paidAt && <span className="block text-xs">Efectivo · {auditTime(o.paidAt)}</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
