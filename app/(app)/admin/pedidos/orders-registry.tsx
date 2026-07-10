@@ -28,17 +28,24 @@ type OrderRow = {
 };
 
 type StatusFilter = "TODOS" | "PENDIENTE" | "ENTREGADO" | "CANCELADO" | "AGOTADO";
+type RegistryView = "RESUMEN" | "CUENTAS" | "PEDIDOS" | "CUADRE";
+
+type AccountItem = {
+  id: string;
+  menuName: string;
+  location: string;
+  price: number;
+  status: OrderRow["status"];
+  paidAt: string | null;
+  paidByName: string | null;
+};
 
 type AccountSummary = {
   key: string;
   customerName: string;
   locations: string[];
-  pendingItems: {
-    id: string;
-    menuName: string;
-    location: string;
-    price: number;
-  }[];
+  items: AccountItem[];
+  pendingItems: AccountItem[];
   orders: number;
   billableOrders: number;
   total: number;
@@ -161,6 +168,8 @@ export function OrdersRegistry() {
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [selectedAccountKeys, setSelectedAccountKeys] = useState<string[]>([]);
+  const [activeView, setActiveView] = useState<RegistryView>("CUENTAS");
+  const [detailAccount, setDetailAccount] = useState<AccountSummary | null>(null);
 
   const dateQuery = useMemo(() => buildDateQuery(from, to), [from, to]);
   const { data: orders, error: ordersError, isLoading, mutate } = useSWR<OrderRow[]>(
@@ -215,6 +224,7 @@ export function OrdersRegistry() {
           key,
           customerName: order.customerName,
           locations: [],
+          items: [],
           pendingItems: [],
           orders: 0,
           billableOrders: 0,
@@ -236,6 +246,15 @@ export function OrdersRegistry() {
       if (!current.locations.includes(location)) {
         current.locations.push(location);
       }
+      current.items.push({
+        id: order.id,
+        menuName: order.menuName,
+        location,
+        price: order.price,
+        status: order.status,
+        paidAt: order.paidAt,
+        paidByName: order.paidByName,
+      });
       if (order.status !== "CANCELADO" && order.status !== "AGOTADO") {
         current.billableOrders += 1;
         current.total += order.price;
@@ -250,6 +269,9 @@ export function OrdersRegistry() {
             menuName: order.menuName,
             location,
             price: order.price,
+            status: order.status,
+            paidAt: order.paidAt,
+            paidByName: order.paidByName,
           });
         }
       }
@@ -281,6 +303,26 @@ export function OrdersRegistry() {
     { value: "CANCELADO", label: "Anulados" },
     { value: "AGOTADO", label: "Agotados" },
   ];
+  const views: { value: RegistryView; label: string }[] = [
+    { value: "RESUMEN", label: "Resumen" },
+    { value: "CUENTAS", label: "Cuentas" },
+    { value: "PEDIDOS", label: "Pedidos" },
+    { value: "CUADRE", label: "Cuadre" },
+  ];
+  const cashiers = useMemo(() => {
+    const grouped = new Map<string, { name: string; orders: number; total: number }>();
+
+    for (const order of filtered) {
+      if (!order.paidAt || order.status === "CANCELADO" || order.status === "AGOTADO") continue;
+      const name = auditText(order.paidByName, order.paidAt);
+      const current = grouped.get(name) ?? { name, orders: 0, total: 0 };
+      current.orders += 1;
+      current.total += order.price;
+      grouped.set(name, current);
+    }
+
+    return Array.from(grouped.values()).sort((a, b) => b.total - a.total);
+  }, [filtered]);
 
   function toggleSelectedAccount(account: AccountSummary) {
     if (account.pendingTotal === 0) return;
@@ -400,6 +442,22 @@ export function OrdersRegistry() {
               </button>
             ))}
           </div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            {views.map((view) => (
+              <button
+                key={view.value}
+                type="button"
+                onClick={() => setActiveView(view.value)}
+                className={`rounded-md border py-2 text-xs font-semibold ${
+                  activeView === view.value
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "bg-card text-muted-foreground"
+                }`}
+              >
+                {view.label}
+              </button>
+            ))}
+          </div>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
             <div className="rounded-md border bg-background p-3">
               <p className="text-xs text-muted-foreground">Pedidos</p>
@@ -450,6 +508,33 @@ export function OrdersRegistry() {
         </CardContent>
       </Card>
 
+      {activeView === "RESUMEN" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Resumen</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="rounded-md border bg-background p-3">
+              <p className="text-xs text-muted-foreground">Total vendido</p>
+              <p className="text-2xl font-bold text-primary">{formatQ(totals.sales)}</p>
+            </div>
+            <div className="rounded-md border bg-background p-3">
+              <p className="text-xs text-muted-foreground">Total cobrado</p>
+              <p className="text-2xl font-bold text-green-500">{formatQ(totals.paid)}</p>
+            </div>
+            <div className="rounded-md border bg-background p-3">
+              <p className="text-xs text-muted-foreground">Pendiente</p>
+              <p className="text-2xl font-bold text-amber-500">{formatQ(totals.due)}</p>
+            </div>
+            <div className="rounded-md border bg-background p-3">
+              <p className="text-xs text-muted-foreground">Cuentas</p>
+              <p className="text-2xl font-bold">{accounts.length}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeView === "CUENTAS" && (
       <Card>
         <CardHeader>
           <CardTitle>Cuentas por hermano</CardTitle>
@@ -551,7 +636,7 @@ export function OrdersRegistry() {
                   type="button"
                   disabled={account.pendingTotal === 0}
                   onClick={() => toggleSelectedAccount(account)}
-                  className={`mb-3 flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                  className={`mb-3 ${account.pendingTotal === 0 ? "hidden" : "flex"} w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition-colors ${
                     selected
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-border bg-card hover:border-primary/50"
@@ -606,21 +691,29 @@ export function OrdersRegistry() {
                 <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
                   <div className="rounded border bg-card px-2 py-1">
                     <span className="block font-semibold">{account.billableOrders}</span>
-                    <span className="text-muted-foreground">Cobrar</span>
+                    <span className="text-muted-foreground">Productos</span>
                   </div>
                   <div className="rounded border bg-card px-2 py-1">
                     <span className="block font-semibold">{account.pending}</span>
-                    <span className="text-muted-foreground">Pend.</span>
+                    <span className="text-muted-foreground">Pendientes</span>
                   </div>
                   <div className="rounded border bg-card px-2 py-1">
                     <span className="block font-semibold">{account.delivered}</span>
-                    <span className="text-muted-foreground">Ent.</span>
+                    <span className="text-muted-foreground">Entregados</span>
                   </div>
                   <div className="rounded border bg-card px-2 py-1">
                     <span className="block font-semibold">{account.cancelled + account.soldOut}</span>
-                    <span className="text-muted-foreground">Fuera</span>
+                    <span className="text-muted-foreground">No cobrados</span>
                   </div>
                 </div>
+                <Button
+                  type="button"
+                  className="mt-3 w-full"
+                  variant="outline"
+                  onClick={() => setDetailAccount(account)}
+                >
+                  Ver detalle
+                </Button>
                 <Button
                   type="button"
                   className="mt-3 w-full"
@@ -652,7 +745,57 @@ export function OrdersRegistry() {
           </div>
         </CardContent>
       </Card>
+      )}
 
+      {activeView === "CUADRE" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Cuadre final</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="rounded-md border bg-background p-3">
+                <p className="text-xs text-muted-foreground">Vendido</p>
+                <p className="text-xl font-bold text-primary">{formatQ(totals.sales)}</p>
+              </div>
+              <div className="rounded-md border bg-background p-3">
+                <p className="text-xs text-muted-foreground">Cobrado</p>
+                <p className="text-xl font-bold text-green-500">{formatQ(totals.paid)}</p>
+              </div>
+              <div className="rounded-md border bg-background p-3">
+                <p className="text-xs text-muted-foreground">Pendiente</p>
+                <p className="text-xl font-bold text-amber-500">{formatQ(totals.due)}</p>
+              </div>
+              <div className="rounded-md border bg-background p-3">
+                <p className="text-xs text-muted-foreground">Anulado/agotado</p>
+                <p className="text-xl font-bold">{totals.cancelled + totals.soldOut}</p>
+              </div>
+            </div>
+            <div className="rounded-md border">
+              {cashiers.length === 0 && (
+                <p className="p-3 text-sm text-muted-foreground">Aun no hay cobros registrados.</p>
+              )}
+              {cashiers.map((cashier) => (
+                <div
+                  key={cashier.name}
+                  className="flex items-center justify-between border-b p-3 last:border-0"
+                >
+                  <div>
+                    <p className="font-semibold">{cashier.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {cashier.orders} producto{cashier.orders === 1 ? "" : "s"} cobrado
+                      {cashier.orders === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <p className="font-bold text-green-500">{formatQ(cashier.total)}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeView === "PEDIDOS" && (
       <Card>
         <CardContent className="p-0">
           {isLoading && (
@@ -664,7 +807,52 @@ export function OrdersRegistry() {
           {!isLoading && filtered.length === 0 && (
             <p className="p-4 text-sm text-muted-foreground">No hay pedidos que coincidan.</p>
           )}
-          <div className="max-h-[56vh] overflow-auto">
+          <div className="max-h-[56vh] space-y-3 overflow-y-auto p-3 md:hidden">
+            {filtered.map((o) => (
+              <div key={o.id} className="rounded-md border bg-background p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{o.customerName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Fila {o.row} - G{o.grupo} · {hora(o.createdAt)}
+                    </p>
+                  </div>
+                  <Badge
+                    variant={
+                      o.status === "PENDIENTE"
+                        ? "warning"
+                        : o.status === "ENTREGADO"
+                          ? "success"
+                          : o.status === "AGOTADO"
+                            ? "destructive"
+                            : "secondary"
+                    }
+                  >
+                    {statusLabel(o.status)}
+                  </Badge>
+                </div>
+                <div className="mt-3 rounded border bg-card px-3 py-2">
+                  <p className="font-medium">{o.menuName}</p>
+                  <p className="text-sm font-bold text-primary">{formatQ(o.price)}</p>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded border bg-card p-2">
+                    <p className="text-muted-foreground">Entrego</p>
+                    <p className="font-semibold">{auditText(o.deliveredByName, o.deliveredAt)}</p>
+                    {o.deliveredAt && <p className="text-muted-foreground">{auditTime(o.deliveredAt)}</p>}
+                  </div>
+                  <div className="rounded border bg-card p-2">
+                    <p className="text-muted-foreground">Cobro</p>
+                    <p className={o.paidAt ? "font-semibold text-green-500" : "font-semibold"}>
+                      {auditText(o.paidByName, o.paidAt)}
+                    </p>
+                    {o.paidAt && <p className="text-muted-foreground">Efectivo · {auditTime(o.paidAt)}</p>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden max-h-[56vh] overflow-auto md:block">
             <table className="w-full min-w-[760px] text-sm">
               <thead className="sticky top-0 z-10">
                 <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
@@ -725,6 +913,76 @@ export function OrdersRegistry() {
           </div>
         </CardContent>
       </Card>
+      )}
+
+      {detailAccount && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/50"
+            aria-label="Cerrar detalle"
+            onClick={() => setDetailAccount(null)}
+          />
+          <section className="relative w-full max-w-lg rounded-lg border bg-card p-4 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold">{detailAccount.customerName}</h2>
+                <p className="text-sm text-muted-foreground">
+                  {detailAccount.locations.join(" | ")}
+                </p>
+              </div>
+              <Button type="button" variant="ghost" size="icon" onClick={() => setDetailAccount(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="rounded border bg-background p-2">
+                <p className="font-bold">{detailAccount.billableOrders}</p>
+                <p className="text-muted-foreground">Productos</p>
+              </div>
+              <div className="rounded border bg-background p-2">
+                <p className="font-bold text-green-500">{formatQ(detailAccount.paidTotal)}</p>
+                <p className="text-muted-foreground">Cobrado</p>
+              </div>
+              <div className="rounded border bg-background p-2">
+                <p className="font-bold text-amber-500">{formatQ(detailAccount.pendingTotal)}</p>
+                <p className="text-muted-foreground">Pendiente</p>
+              </div>
+            </div>
+            <div className="mt-4 max-h-80 space-y-2 overflow-y-auto">
+              {detailAccount.items.map((item) => (
+                <div key={item.id} className="rounded-md border bg-background p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold">{item.menuName}</p>
+                      <p className="text-xs text-muted-foreground">{item.location}</p>
+                    </div>
+                    <p className="shrink-0 font-bold text-primary">{formatQ(item.price)}</p>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                    <Badge
+                      variant={
+                        item.status === "PENDIENTE"
+                          ? "warning"
+                          : item.status === "ENTREGADO"
+                            ? "success"
+                            : item.status === "AGOTADO"
+                              ? "destructive"
+                              : "secondary"
+                      }
+                    >
+                      {statusLabel(item.status)}
+                    </Badge>
+                    <span className={item.paidAt ? "font-medium text-green-500" : "text-muted-foreground"}>
+                      {item.paidAt ? `Cobrado por ${auditText(item.paidByName, item.paidAt)}` : "Pendiente de cobro"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
 
       <ActionDialog
         open={!!paymentTarget}

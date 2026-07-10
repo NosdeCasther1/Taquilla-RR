@@ -15,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-dvh bg-muted/40">
       <header className="sticky top-0 z-40 border-b bg-card">
-        <div className="mx-auto flex h-14 max-w-md items-center justify-between px-4 md:max-w-5xl">
+        <div className="mx-auto flex h-14 max-w-md items-center justify-between px-4 md:max-w-7xl">
           <AppBrand size="sm" />
           <div className="flex items-center gap-2">
             <span className="max-w-[140px] truncate text-sm text-muted-foreground">
@@ -26,7 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-md px-4 pb-24 pt-4 md:max-w-5xl">{children}</main>
+      <main className="mx-auto max-w-md px-4 pb-24 pt-4 md:max-w-7xl">{children}</main>
       <BottomNav isAdmin={session.user.role === "ADMIN"} />
     </div>
   );
