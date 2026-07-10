@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   ClipboardList,
+  Info,
   ListOrdered,
   PlusCircle,
   Users,
@@ -22,6 +23,7 @@ const adminItems = [
   { href: "/admin/menus", label: "Menus", icon: UtensilsCrossed },
   { href: "/admin/pedidos", label: "Registro", icon: ListOrdered },
   { href: "/admin/usuarios", label: "Usuarios", icon: Users },
+  { href: "/acerca", label: "Acerca", icon: Info },
 ];
 
 export function BottomNav() {

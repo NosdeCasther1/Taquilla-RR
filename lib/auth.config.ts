@@ -33,6 +33,11 @@ export const authConfig = {
         return true;
       }
 
+      // Creditos de la aplicacion
+      if (pathname.startsWith("/acerca")) {
+        return true;
+      }
+
       // Menús activos para el formulario público
       if (pathname === "/api/menus" && method === "GET" && searchParams.get("active") === "1") {
         return true;
