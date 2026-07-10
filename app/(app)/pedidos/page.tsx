@@ -29,7 +29,7 @@ type Order = {
 };
 
 type Filter = "PENDIENTE" | "ENTREGADO" | "CANCELADO" | "AGOTADO" | "TODOS";
-type AdminAction = "CANCELADO" | "AGOTADO";
+type ConfirmAction = "ENTREGADO" | "CANCELADO" | "AGOTADO" | "PENDIENTE";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -62,7 +62,7 @@ function statusVariant(status: OrderStatus): "warning" | "success" | "secondary"
 export default function PedidosPage() {
   const [filter, setFilter] = useState<Filter>("PENDIENTE");
   const [updating, setUpdating] = useState<string | null>(null);
-  const [adminAction, setAdminAction] = useState<{ order: Order; status: AdminAction } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ order: Order; status: ConfirmAction } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showNotifPrompt, setShowNotifPrompt] = useState(false);
@@ -114,11 +114,43 @@ export default function PedidosPage() {
     return true;
   }
 
-  async function confirmAdminAction() {
-    if (!adminAction) return;
+  function openConfirmAction(order: Order, status: ConfirmAction) {
     setActionError(null);
-    const ok = await setStatus(adminAction.order, adminAction.status);
-    if (ok) setAdminAction(null);
+    setConfirmAction({ order, status });
+  }
+
+  async function confirmStatusAction() {
+    if (!confirmAction) return;
+    setActionError(null);
+    const ok = await setStatus(confirmAction.order, confirmAction.status);
+    if (ok) setConfirmAction(null);
+  }
+
+  function confirmTitle(action: ConfirmAction) {
+    if (action === "ENTREGADO") return "Entregar pedido";
+    if (action === "AGOTADO") return "Marcar como agotado";
+    if (action === "CANCELADO") return "Anular pedido";
+    return "Revertir pedido";
+  }
+
+  function confirmDescription(order: Order, action: ConfirmAction) {
+    if (action === "ENTREGADO") {
+      return `Se marcara como entregado el pedido de ${order.customerName}: ${order.menuName}.`;
+    }
+    if (action === "AGOTADO") {
+      return `Se notificara al cliente que "${order.menuName}" esta agotado.`;
+    }
+    if (action === "CANCELADO") {
+      return `Se anulara el pedido de ${order.customerName} y el cliente vera el cambio.`;
+    }
+    return `El pedido de ${order.customerName} volvera a Pendiente y se limpiaran entrega/cobro registrados.`;
+  }
+
+  function confirmLabel(action: ConfirmAction) {
+    if (action === "ENTREGADO") return "Confirmar entrega";
+    if (action === "AGOTADO") return "Marcar agotado";
+    if (action === "CANCELADO") return "Anular";
+    return "Revertir";
   }
 
   return (
@@ -226,7 +258,7 @@ export default function PedidosPage() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setStatus(order, "ENTREGADO");
+                          openConfirmAction(order, "ENTREGADO");
                         }}
                         disabled={updating === order.id}
                       >
@@ -239,8 +271,7 @@ export default function PedidosPage() {
                         className="text-destructive hover:text-destructive"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setActionError(null);
-                          setAdminAction({ order, status: "AGOTADO" });
+                          openConfirmAction(order, "AGOTADO");
                         }}
                         disabled={updating === order.id}
                       >
@@ -253,8 +284,7 @@ export default function PedidosPage() {
                         className="text-destructive hover:text-destructive"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setActionError(null);
-                          setAdminAction({ order, status: "CANCELADO" });
+                          openConfirmAction(order, "CANCELADO");
                         }}
                         disabled={updating === order.id}
                       >
@@ -268,7 +298,7 @@ export default function PedidosPage() {
                       variant="ghost"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setStatus(order, "PENDIENTE");
+                        openConfirmAction(order, "PENDIENTE");
                       }}
                       disabled={updating === order.id}
                     >
@@ -284,27 +314,29 @@ export default function PedidosPage() {
       </div>
 
       <ActionDialog
-        open={!!adminAction}
-        title={adminAction?.status === "AGOTADO" ? "Marcar como agotado" : "Anular pedido"}
+        open={!!confirmAction}
+        title={confirmAction ? confirmTitle(confirmAction.status) : ""}
         description={
-          adminAction
-            ? adminAction.status === "AGOTADO"
-              ? `Se notificara al cliente que "${adminAction.order.menuName}" esta agotado.`
-              : `Se anulara el pedido de ${adminAction.order.customerName} y el cliente vera el cambio.`
+          confirmAction
+            ? confirmDescription(confirmAction.order, confirmAction.status)
             : ""
         }
-        confirmLabel={adminAction?.status === "AGOTADO" ? "Marcar agotado" : "Anular"}
+        confirmLabel={confirmAction ? confirmLabel(confirmAction.status) : "Confirmar"}
         busyLabel="Actualizando..."
         busy={!!updating}
         error={actionError}
-        variant="destructive"
+        variant={
+          confirmAction?.status === "CANCELADO" || confirmAction?.status === "AGOTADO"
+            ? "destructive"
+            : "default"
+        }
         onOpenChange={(open) => {
           if (!open) {
-            setAdminAction(null);
+            setConfirmAction(null);
             setActionError(null);
           }
         }}
-        onConfirm={confirmAdminAction}
+        onConfirm={confirmStatusAction}
       />
     </div>
   );
