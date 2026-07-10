@@ -19,8 +19,10 @@ function serializeOrder(o: {
   createdAt: Date;
   deliveredAt: Date | null;
   cancelledAt: Date | null;
+  paidAt: Date | null;
   menu: { name: string; imageUrl?: string | null };
   deliveredBy?: { name: string } | null;
+  paidBy?: { name: string } | null;
 }) {
   return {
     id: o.id,
@@ -34,8 +36,10 @@ function serializeOrder(o: {
     status: o.status,
     deliveredAt: o.deliveredAt,
     cancelledAt: o.cancelledAt,
+    paidAt: o.paidAt,
     createdAt: o.createdAt,
     deliveredByName: o.deliveredBy?.name ?? null,
+    paidByName: o.paidBy?.name ?? null,
   };
 }
 
@@ -45,6 +49,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     include: {
       menu: { select: { name: true, imageUrl: true } },
       deliveredBy: { select: { name: true } },
+      paidBy: { select: { name: true } },
     },
   });
 
@@ -74,10 +79,16 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
     const updated = await prisma.order.update({
       where: { id: params.id },
-      data: { status: OrderStatus.CANCELADO, cancelledAt: new Date() },
+      data: {
+        status: OrderStatus.CANCELADO,
+        cancelledAt: new Date(),
+        paidAt: null,
+        paidById: null,
+      },
       include: {
         menu: { select: { name: true, imageUrl: true } },
         deliveredBy: { select: { name: true } },
+        paidBy: { select: { name: true } },
       },
     });
     return NextResponse.json(serializeOrder(updated));
@@ -97,6 +108,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       include: {
         menu: { select: { name: true, imageUrl: true } },
         deliveredBy: { select: { name: true } },
+        paidBy: { select: { name: true } },
       },
     });
     return NextResponse.json(serializeOrder(updated));
@@ -113,10 +125,13 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         cancelledAt: new Date(),
         deliveredAt: null,
         deliveredById: null,
+        paidAt: null,
+        paidById: null,
       },
       include: {
         menu: { select: { name: true, imageUrl: true } },
         deliveredBy: { select: { name: true } },
+        paidBy: { select: { name: true } },
       },
     });
     return NextResponse.json(serializeOrder(updated));
@@ -137,10 +152,13 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       deliveredAt: null,
       deliveredById: null,
       cancelledAt: null,
+      paidAt: null,
+      paidById: null,
     },
     include: {
       menu: { select: { name: true, imageUrl: true } },
       deliveredBy: { select: { name: true } },
+      paidBy: { select: { name: true } },
     },
   });
   return NextResponse.json(serializeOrder(updated));

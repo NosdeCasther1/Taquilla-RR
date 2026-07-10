@@ -22,6 +22,7 @@ type OrderSummary = {
   status: "PENDIENTE" | "ENTREGADO" | "CANCELADO" | "AGOTADO";
   deliveredAt: string | null;
   cancelledAt: string | null;
+  paidAt: string | null;
   createdAt: string;
 };
 
@@ -32,6 +33,7 @@ type AccountSummary = {
   grupo: number;
   orders: number;
   total: number;
+  paid: boolean;
 };
 
 const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((r) => r.json());
@@ -77,11 +79,15 @@ export default function MisPedidosPage() {
     () => (orders ?? []).filter((order) => order.status !== "CANCELADO" && order.status !== "AGOTADO"),
     [orders]
   );
-  const totalDue = billableOrders.reduce((sum, order) => sum + order.price, 0);
+  const pendingPaymentOrders = useMemo(
+    () => billableOrders.filter((order) => !order.paidAt),
+    [billableOrders]
+  );
+  const totalDue = pendingPaymentOrders.reduce((sum, order) => sum + order.price, 0);
   const accounts = useMemo(() => {
     const grouped = new Map<string, AccountSummary>();
 
-    for (const order of billableOrders) {
+    for (const order of pendingPaymentOrders) {
       const key = accountKey(order);
       const current =
         grouped.get(key) ??
@@ -92,6 +98,7 @@ export default function MisPedidosPage() {
           grupo: order.grupo,
           orders: 0,
           total: 0,
+          paid: false,
         };
       current.orders += 1;
       current.total += order.price;
@@ -99,7 +106,7 @@ export default function MisPedidosPage() {
     }
 
     return Array.from(grouped.values()).sort((a, b) => b.total - a.total);
-  }, [billableOrders]);
+  }, [pendingPaymentOrders]);
 
   return (
     <div className="space-y-4">
@@ -144,28 +151,38 @@ export default function MisPedidosPage() {
           <CardContent className="space-y-3 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm text-muted-foreground">Total a pagar al finalizar</p>
+                <p className="text-sm text-muted-foreground">Total pendiente de pago</p>
                 <p className="text-2xl font-bold text-primary">{formatQ(totalDue)}</p>
               </div>
-              <Badge variant="success">{billableOrders.length} activos</Badge>
+              {totalDue > 0 ? (
+                <Badge variant="warning">{pendingPaymentOrders.length} por pagar</Badge>
+              ) : (
+                <Badge variant="success">Pagado</Badge>
+              )}
             </div>
-            <div className="space-y-2">
-              {accounts.map((account) => (
-                <div
-                  key={account.key}
-                  className="flex items-center justify-between gap-3 rounded-md border bg-background px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{account.customerName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Fila {account.row} - Grupo {account.grupo} - {account.orders} pedido
-                      {account.orders === 1 ? "" : "s"}
-                    </p>
+            {totalDue === 0 ? (
+              <p className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground">
+                Cuenta pagada. Gracias.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {accounts.map((account) => (
+                  <div
+                    key={account.key}
+                    className="flex items-center justify-between gap-3 rounded-md border bg-background px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{account.customerName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Fila {account.row} - Grupo {account.grupo} - {account.orders} pedido
+                        {account.orders === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                    <p className="shrink-0 font-bold">{formatQ(account.total)}</p>
                   </div>
-                  <p className="shrink-0 font-bold">{formatQ(account.total)}</p>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

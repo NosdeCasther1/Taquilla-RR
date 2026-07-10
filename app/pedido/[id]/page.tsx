@@ -24,6 +24,7 @@ type OrderReceipt = {
   status: "PENDIENTE" | "ENTREGADO" | "CANCELADO" | "AGOTADO";
   deliveredAt: string | null;
   cancelledAt: string | null;
+  paidAt: string | null;
   createdAt: string;
 };
 
@@ -97,7 +98,8 @@ export default function PedidoReciboPage({ params }: { params: { id: string } })
         item.row.trim().toLowerCase() === order.row.trim().toLowerCase() &&
         item.grupo === order.grupo &&
         item.status !== "CANCELADO" &&
-        item.status !== "AGOTADO"
+        item.status !== "AGOTADO" &&
+        !item.paidAt
     );
   }, [historyOrders, order]);
   const accountTotal = accountOrders.reduce((sum, item) => sum + item.price, 0);
@@ -188,10 +190,11 @@ export default function PedidoReciboPage({ params }: { params: { id: string } })
           <div className="rounded-md border bg-background p-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm text-muted-foreground">Total a pagar al finalizar</p>
+                <p className="text-sm text-muted-foreground">Total pendiente de pago</p>
                 <p className="text-xs text-muted-foreground">
-                  {accountOrders.length} pedido{accountOrders.length === 1 ? "" : "s"} activo
-                  {accountOrders.length === 1 ? "" : "s"} para este hermano
+                  {accountOrders.length > 0
+                    ? `${accountOrders.length} pedido${accountOrders.length === 1 ? "" : "s"} por pagar para este hermano`
+                    : "Cuenta pagada. Gracias."}
                 </p>
               </div>
               <p className="text-xl font-bold text-primary">{formatQ(accountTotal)}</p>

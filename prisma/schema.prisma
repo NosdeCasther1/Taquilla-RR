@@ -21,7 +21,8 @@ model StaffUser {
   createdAt DateTime @default(now())
 
   // Relación inversa requerida por Prisma para Order.deliveredBy
-  orders Order[]
+  orders     Order[] @relation("OrderDeliveredBy")
+  paidOrders Order[] @relation("OrderPaidBy")
 }
 
 enum Role {
@@ -51,14 +52,19 @@ model Order {
   menuId        String
   price         Decimal     @db.Decimal(10, 2) // precio congelado al momento del pedido
   // El pedido lo crea el propio asistente; el staff solo lo entrega.
-  deliveredBy   StaffUser?  @relation(fields: [deliveredById], references: [id])
+  deliveredBy   StaffUser?  @relation("OrderDeliveredBy", fields: [deliveredById], references: [id])
   deliveredById String?
+  paidBy        StaffUser?  @relation("OrderPaidBy", fields: [paidById], references: [id])
+  paidById      String?
   createdAt     DateTime    @default(now())
   deliveredAt   DateTime?
   cancelledAt   DateTime?
+  paidAt        DateTime?
 
   @@index([menuId])
   @@index([deliveredById])
+  @@index([paidById])
+  @@index([paidAt])
   @@index([status, createdAt])
 }
 

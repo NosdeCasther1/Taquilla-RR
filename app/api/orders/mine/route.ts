@@ -44,6 +44,7 @@ export async function GET(request: Request) {
         status: o.status,
         deliveredAt: o.deliveredAt,
         cancelledAt: o.cancelledAt,
+        paidAt: o.paidAt,
         createdAt: o.createdAt,
       },
     ])

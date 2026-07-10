@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import useSWR from "swr";
-import { CalendarDays, Download, Search, X } from "lucide-react";
+import { Banknote, CalendarDays, CheckCircle2, Download, Search, X } from "lucide-react";
+import { ActionDialog } from "@/components/ui/action-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +22,9 @@ type OrderRow = {
   createdAt: string;
   deliveredAt: string | null;
   cancelledAt: string | null;
+  paidAt: string | null;
   deliveredByName: string | null;
+  paidByName: string | null;
 };
 
 type StatusFilter = "TODOS" | "PENDIENTE" | "ENTREGADO" | "CANCELADO" | "AGOTADO";
@@ -34,10 +37,15 @@ type AccountSummary = {
   orders: number;
   billableOrders: number;
   total: number;
+  paidOrders: number;
+  paidTotal: number;
+  pendingTotal: number;
   pending: number;
   delivered: number;
   cancelled: number;
   soldOut: number;
+  orderIds: string[];
+  pendingOrderIds: string[];
 };
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -103,9 +111,15 @@ export function OrdersRegistry() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("TODOS");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [paymentTarget, setPaymentTarget] = useState<AccountSummary | null>(null);
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const dateQuery = useMemo(() => buildDateQuery(from, to), [from, to]);
-  const { data: orders, isLoading } = useSWR<OrderRow[]>(`/api/orders${dateQuery}`, fetcher);
+  const { data: orders, isLoading, mutate } = useSWR<OrderRow[]>(
+    `/api/orders${dateQuery}`,
+    fetcher
+  );
 
   const filtered = useMemo(() => {
     if (!orders) return [];
@@ -127,6 +141,11 @@ export function OrdersRegistry() {
         acc.orders += 1;
         if (order.status !== "CANCELADO" && order.status !== "AGOTADO") {
           acc.sales += order.price;
+          if (order.paidAt) {
+            acc.paid += order.price;
+          } else {
+            acc.due += order.price;
+          }
         }
         if (order.status === "PENDIENTE") acc.pending += 1;
         if (order.status === "ENTREGADO") acc.delivered += 1;
@@ -134,7 +153,7 @@ export function OrdersRegistry() {
         if (order.status === "AGOTADO") acc.soldOut += 1;
         return acc;
       },
-      { orders: 0, sales: 0, pending: 0, delivered: 0, cancelled: 0, soldOut: 0 }
+      { orders: 0, sales: 0, paid: 0, due: 0, pending: 0, delivered: 0, cancelled: 0, soldOut: 0 }
     );
   }, [filtered]);
 
@@ -153,16 +172,29 @@ export function OrdersRegistry() {
           orders: 0,
           billableOrders: 0,
           total: 0,
+          paidOrders: 0,
+          paidTotal: 0,
+          pendingTotal: 0,
           pending: 0,
           delivered: 0,
           cancelled: 0,
           soldOut: 0,
+          orderIds: [],
+          pendingOrderIds: [],
         };
 
       current.orders += 1;
+      current.orderIds.push(order.id);
       if (order.status !== "CANCELADO" && order.status !== "AGOTADO") {
         current.billableOrders += 1;
         current.total += order.price;
+        if (order.paidAt) {
+          current.paidOrders += 1;
+          current.paidTotal += order.price;
+        } else {
+          current.pendingTotal += order.price;
+          current.pendingOrderIds.push(order.id);
+        }
       }
       if (order.status === "PENDIENTE") current.pending += 1;
       if (order.status === "ENTREGADO") current.delivered += 1;
@@ -182,6 +214,29 @@ export function OrdersRegistry() {
     { value: "CANCELADO", label: "Anulados" },
     { value: "AGOTADO", label: "Agotados" },
   ];
+
+  async function confirmPayment() {
+    if (!paymentTarget) return;
+    setPaymentBusy(true);
+    setPaymentError(null);
+
+    const res = await fetch("/api/orders/pay", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderIds: paymentTarget.pendingOrderIds }),
+    });
+
+    setPaymentBusy(false);
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      setPaymentError(body?.error ?? "No se pudo registrar el cobro");
+      return;
+    }
+
+    setPaymentTarget(null);
+    await mutate();
+  }
 
   return (
     <div className="space-y-4">
@@ -263,7 +318,7 @@ export function OrdersRegistry() {
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-7">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
             <div className="rounded-md border bg-background p-3">
               <p className="text-xs text-muted-foreground">Pedidos</p>
               <p className="text-xl font-bold">{totals.orders}</p>
@@ -271,6 +326,14 @@ export function OrdersRegistry() {
             <div className="rounded-md border bg-background p-3">
               <p className="text-xs text-muted-foreground">Ventas</p>
               <p className="text-xl font-bold text-primary">{formatQ(totals.sales)}</p>
+            </div>
+            <div className="rounded-md border bg-background p-3">
+              <p className="text-xs text-muted-foreground">Cobrado</p>
+              <p className="text-xl font-bold text-green-500">{formatQ(totals.paid)}</p>
+            </div>
+            <div className="rounded-md border bg-background p-3">
+              <p className="text-xs text-muted-foreground">Pendiente</p>
+              <p className="text-xl font-bold text-amber-500">{formatQ(totals.due)}</p>
             </div>
             <div className="rounded-md border bg-background p-3">
               <p className="text-xs text-muted-foreground">Cuentas</p>
@@ -324,7 +387,16 @@ export function OrdersRegistry() {
                       Fila {account.row} - Grupo {account.grupo}
                     </p>
                   </div>
-                  <p className="shrink-0 text-lg font-bold text-primary">{formatQ(account.total)}</p>
+                  <div className="shrink-0 text-right">
+                    <p className="text-lg font-bold text-primary">{formatQ(account.total)}</p>
+                    {account.pendingTotal === 0 && account.billableOrders > 0 ? (
+                      <Badge variant="success">Pagado</Badge>
+                    ) : (
+                      <p className="text-xs text-amber-500">
+                        Pendiente {formatQ(account.pendingTotal)}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
                   <div className="rounded border bg-card px-2 py-1">
@@ -344,6 +416,28 @@ export function OrdersRegistry() {
                     <span className="text-muted-foreground">Fuera</span>
                   </div>
                 </div>
+                <Button
+                  type="button"
+                  className="mt-3 w-full"
+                  variant={account.pendingTotal > 0 ? "default" : "outline"}
+                  disabled={account.pendingTotal === 0}
+                  onClick={() => {
+                    setPaymentTarget(account);
+                    setPaymentError(null);
+                  }}
+                >
+                  {account.pendingTotal > 0 ? (
+                    <>
+                      <Banknote className="h-4 w-4" />
+                      Cobrar efectivo {formatQ(account.pendingTotal)}
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4" />
+                      Cuenta pagada
+                    </>
+                  )}
+                </Button>
               </div>
             ))}
           </div>
@@ -377,6 +471,11 @@ export function OrdersRegistry() {
                     <td className="p-3">
                       {o.menuName}
                       <span className="block text-xs text-muted-foreground">{formatQ(o.price)}</span>
+                      {o.paidAt && (
+                        <span className="block text-xs text-green-500">
+                          Pagado efectivo{o.paidByName ? ` por ${o.paidByName}` : ""}
+                        </span>
+                      )}
                     </td>
                     <td className="p-3">
                       Fila {o.row} · G{o.grupo}
@@ -405,6 +504,27 @@ export function OrdersRegistry() {
           </div>
         </CardContent>
       </Card>
+
+      <ActionDialog
+        open={!!paymentTarget}
+        title="Cobrar en efectivo"
+        description={
+          paymentTarget
+            ? `Se registrara el pago en efectivo de ${formatQ(paymentTarget.pendingTotal)} para ${paymentTarget.customerName}.`
+            : ""
+        }
+        confirmLabel="Confirmar cobro"
+        busyLabel="Registrando..."
+        busy={paymentBusy}
+        error={paymentError}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPaymentTarget(null);
+            setPaymentError(null);
+          }
+        }}
+        onConfirm={confirmPayment}
+      />
     </div>
   );
 }

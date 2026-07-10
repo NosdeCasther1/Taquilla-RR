@@ -54,6 +54,7 @@ export async function GET(request: Request) {
     include: {
       menu: { select: { name: true } },
       deliveredBy: { select: { name: true } },
+      paidBy: { select: { name: true } },
     },
   });
 
@@ -69,8 +70,10 @@ export async function GET(request: Request) {
       status: o.status,
       deliveredAt: o.deliveredAt,
       cancelledAt: o.cancelledAt,
+      paidAt: o.paidAt,
       createdAt: o.createdAt,
       deliveredByName: o.deliveredBy?.name ?? null,
+      paidByName: o.paidBy?.name ?? null,
     }))
   );
 }
