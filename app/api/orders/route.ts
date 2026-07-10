@@ -56,7 +56,17 @@ export async function GET(request: Request) {
       deliveredBy: { select: { name: true } },
       paidBy: { select: { name: true } },
     },
+  }).catch((error) => {
+    console.error("GET /api/orders", error);
+    return null;
   });
+
+  if (!orders) {
+    return NextResponse.json(
+      { error: "No se pudo conectar con la base de datos. Revisa la configuracion de produccion." },
+      { status: 503 }
+    );
+  }
 
   return NextResponse.json(
     orders.map((o) => ({
