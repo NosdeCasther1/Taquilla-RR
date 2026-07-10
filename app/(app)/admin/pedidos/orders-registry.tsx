@@ -562,16 +562,18 @@ export function OrdersRegistry() {
                     Total a cobrar en efectivo: {formatQ(selectedPendingTotal)}
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:flex">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
                   <Button
                     type="button"
                     variant="outline"
+                    className="w-full sm:w-auto"
                     onClick={() => setSelectedAccountKeys([])}
                   >
                     Limpiar
                   </Button>
                   <Button
                     type="button"
+                    className="w-full sm:w-auto"
                     disabled={selectedPendingOrderIds.length === 0}
                     onClick={() =>
                       openPayment({
@@ -585,7 +587,8 @@ export function OrdersRegistry() {
                     }
                   >
                     <Banknote className="h-4 w-4" />
-                    Cobrar seleccionadas
+                    <span className="sm:hidden">Cobrar</span>
+                    <span className="hidden sm:inline">Cobrar seleccionadas</span>
                   </Button>
                 </div>
               </div>
