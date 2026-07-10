@@ -89,6 +89,7 @@ export const authConfig = {
       if (user) {
         token.id = user.id;
         token.role = user.role;
+        token.email = user.email;
       }
       return token;
     },
@@ -96,6 +97,7 @@ export const authConfig = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as "STAFF" | "ADMIN";
+        session.user.email = token.email as string;
       }
       return session;
     },

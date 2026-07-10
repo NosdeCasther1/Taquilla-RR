@@ -98,7 +98,7 @@ function statusLabel(s: OrderRow["status"]) {
 
 function auditText(name: string | null, iso: string | null) {
   if (!iso) return "Pendiente";
-  return name ?? "Sin registro";
+  return name ?? "Administrador";
 }
 
 function auditTime(iso: string | null) {

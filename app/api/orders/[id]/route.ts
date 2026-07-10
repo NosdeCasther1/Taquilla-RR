@@ -2,6 +2,7 @@ import { OrderStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
+import { findCurrentStaffUser } from "@/lib/current-staff-user";
 import { prisma } from "@/lib/prisma";
 
 const patchSchema = z.object({
@@ -94,6 +95,11 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json(serializeOrder(updated));
   }
 
+  const currentUser = await findCurrentStaffUser(session.user);
+  if (!currentUser) {
+    return NextResponse.json({ error: "No se pudo identificar el usuario actual" }, { status: 403 });
+  }
+
   if (parsed.data.status === "ENTREGADO") {
     if (order.status !== OrderStatus.PENDIENTE) {
       return NextResponse.json({ error: "Solo se pueden entregar pedidos pendientes" }, { status: 400 });
@@ -103,7 +109,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       data: {
         status: OrderStatus.ENTREGADO,
         deliveredAt: new Date(),
-        deliveredById: session.user.id,
+        deliveredById: currentUser.id,
       },
       include: {
         menu: { select: { name: true, imageUrl: true } },

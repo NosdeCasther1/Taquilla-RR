@@ -2,6 +2,7 @@ import { OrderStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
+import { findCurrentStaffUser } from "@/lib/current-staff-user";
 import { prisma } from "@/lib/prisma";
 
 const paySchema = z.object({
@@ -12,6 +13,10 @@ export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+  const currentUser = await findCurrentStaffUser(session.user);
+  if (!currentUser) {
+    return NextResponse.json({ error: "No se pudo identificar quien esta cobrando" }, { status: 403 });
   }
 
   const parsed = paySchema.safeParse(await request.json());
@@ -56,7 +61,7 @@ export async function POST(request: Request) {
     where: { id: { in: paidIds }, paidAt: null },
     data: {
       paidAt,
-      paidById: session.user.id,
+      paidById: currentUser.id,
     },
   });
 
@@ -64,7 +69,7 @@ export async function POST(request: Request) {
     ok: true,
     paymentMethod: "EFECTIVO",
     paidAt,
-    paidByName: session.user.name ?? "Usuario",
+    paidByName: currentUser.name,
     paidCount: payable.length,
     total,
   });
