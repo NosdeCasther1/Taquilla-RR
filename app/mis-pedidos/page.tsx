@@ -29,8 +29,7 @@ type OrderSummary = {
 type AccountSummary = {
   key: string;
   customerName: string;
-  row: string;
-  grupo: number;
+  locations: string[];
   orders: number;
   total: number;
   paid: boolean;
@@ -55,8 +54,12 @@ function statusBadge(status: OrderSummary["status"]) {
   }
 }
 
-function accountKey(order: Pick<OrderSummary, "customerName" | "row" | "grupo">) {
-  return `${order.customerName.trim().toLowerCase()}|${order.row.trim().toLowerCase()}|${order.grupo}`;
+function accountKey(order: Pick<OrderSummary, "customerName">) {
+  return order.customerName.trim().toLowerCase();
+}
+
+function locationLabel(order: Pick<OrderSummary, "row" | "grupo">) {
+  return `Fila ${order.row} - Grupo ${order.grupo}`;
 }
 
 export default function MisPedidosPage() {
@@ -94,14 +97,17 @@ export default function MisPedidosPage() {
         {
           key,
           customerName: order.customerName,
-          row: order.row,
-          grupo: order.grupo,
+          locations: [],
           orders: 0,
           total: 0,
           paid: false,
         };
       current.orders += 1;
       current.total += order.price;
+      const location = locationLabel(order);
+      if (!current.locations.includes(location)) {
+        current.locations.push(location);
+      }
       grouped.set(key, current);
     }
 
@@ -174,7 +180,7 @@ export default function MisPedidosPage() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">{account.customerName}</p>
                       <p className="text-xs text-muted-foreground">
-                        Fila {account.row} - Grupo {account.grupo} - {account.orders} pedido
+                        {account.locations.join(" | ")} - {account.orders} pedido
                         {account.orders === 1 ? "" : "s"}
                       </p>
                     </div>

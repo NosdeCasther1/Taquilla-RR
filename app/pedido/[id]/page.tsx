@@ -95,8 +95,6 @@ export default function PedidoReciboPage({ params }: { params: { id: string } })
     return source.filter(
       (item) =>
         item.customerName.trim().toLowerCase() === order.customerName.trim().toLowerCase() &&
-        item.row.trim().toLowerCase() === order.row.trim().toLowerCase() &&
-        item.grupo === order.grupo &&
         item.status !== "CANCELADO" &&
         item.status !== "AGOTADO" &&
         !item.paidAt

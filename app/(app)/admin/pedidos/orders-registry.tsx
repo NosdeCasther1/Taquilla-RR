@@ -32,8 +32,7 @@ type StatusFilter = "TODOS" | "PENDIENTE" | "ENTREGADO" | "CANCELADO" | "AGOTADO
 type AccountSummary = {
   key: string;
   customerName: string;
-  row: string;
-  grupo: number;
+  locations: string[];
   orders: number;
   billableOrders: number;
   total: number;
@@ -45,6 +44,12 @@ type AccountSummary = {
   cancelled: number;
   soldOut: number;
   orderIds: string[];
+  pendingOrderIds: string[];
+};
+
+type PaymentTarget = {
+  label: string;
+  pendingTotal: number;
   pendingOrderIds: string[];
 };
 
@@ -102,8 +107,12 @@ function exportCsv(rows: OrderRow[]) {
   URL.revokeObjectURL(url);
 }
 
-function accountKey(order: Pick<OrderRow, "customerName" | "row" | "grupo">) {
-  return `${order.customerName.trim().toLowerCase()}|${order.row.trim().toLowerCase()}|${order.grupo}`;
+function accountKey(order: Pick<OrderRow, "customerName">) {
+  return order.customerName.trim().toLowerCase();
+}
+
+function locationLabel(order: Pick<OrderRow, "row" | "grupo">) {
+  return `Fila ${order.row} - Grupo ${order.grupo}`;
 }
 
 export function OrdersRegistry() {
@@ -111,9 +120,10 @@ export function OrdersRegistry() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("TODOS");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [paymentTarget, setPaymentTarget] = useState<AccountSummary | null>(null);
+  const [paymentTarget, setPaymentTarget] = useState<PaymentTarget | null>(null);
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [selectedAccountKeys, setSelectedAccountKeys] = useState<string[]>([]);
 
   const dateQuery = useMemo(() => buildDateQuery(from, to), [from, to]);
   const { data: orders, isLoading, mutate } = useSWR<OrderRow[]>(
@@ -167,8 +177,7 @@ export function OrdersRegistry() {
         {
           key,
           customerName: order.customerName,
-          row: order.row,
-          grupo: order.grupo,
+          locations: [],
           orders: 0,
           billableOrders: 0,
           total: 0,
@@ -185,6 +194,10 @@ export function OrdersRegistry() {
 
       current.orders += 1;
       current.orderIds.push(order.id);
+      const location = locationLabel(order);
+      if (!current.locations.includes(location)) {
+        current.locations.push(location);
+      }
       if (order.status !== "CANCELADO" && order.status !== "AGOTADO") {
         current.billableOrders += 1;
         current.total += order.price;
@@ -207,6 +220,16 @@ export function OrdersRegistry() {
     return Array.from(grouped.values()).sort((a, b) => b.total - a.total);
   }, [filtered]);
 
+  const selectedAccounts = useMemo(
+    () => accounts.filter((account) => selectedAccountKeys.includes(account.key)),
+    [accounts, selectedAccountKeys]
+  );
+  const selectedPendingOrderIds = selectedAccounts.flatMap((account) => account.pendingOrderIds);
+  const selectedPendingTotal = selectedAccounts.reduce(
+    (sum, account) => sum + account.pendingTotal,
+    0
+  );
+
   const filters: { value: StatusFilter; label: string }[] = [
     { value: "TODOS", label: "Todos" },
     { value: "PENDIENTE", label: "Pendientes" },
@@ -214,6 +237,20 @@ export function OrdersRegistry() {
     { value: "CANCELADO", label: "Anulados" },
     { value: "AGOTADO", label: "Agotados" },
   ];
+
+  function toggleSelectedAccount(account: AccountSummary) {
+    if (account.pendingTotal === 0) return;
+    setSelectedAccountKeys((current) =>
+      current.includes(account.key)
+        ? current.filter((key) => key !== account.key)
+        : [...current, account.key]
+    );
+  }
+
+  function openPayment(target: PaymentTarget) {
+    setPaymentTarget(target);
+    setPaymentError(null);
+  }
 
   async function confirmPayment() {
     if (!paymentTarget) return;
@@ -235,6 +272,7 @@ export function OrdersRegistry() {
     }
 
     setPaymentTarget(null);
+    setSelectedAccountKeys([]);
     await mutate();
   }
 
@@ -377,14 +415,75 @@ export function OrdersRegistry() {
           {!isLoading && accounts.length === 0 && (
             <p className="text-sm text-muted-foreground">No hay cuentas para cobrar.</p>
           )}
+          {selectedAccounts.length > 0 && (
+            <div className="flex flex-col gap-2 rounded-md border bg-background p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold">
+                  {selectedAccounts.length} cuenta{selectedAccounts.length === 1 ? "" : "s"} seleccionada
+                  {selectedAccounts.length === 1 ? "" : "s"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Total a cobrar en efectivo: {formatQ(selectedPendingTotal)}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:flex">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setSelectedAccountKeys([])}
+                >
+                  Limpiar
+                </Button>
+                <Button
+                  type="button"
+                  disabled={selectedPendingOrderIds.length === 0}
+                  onClick={() =>
+                    openPayment({
+                      label:
+                        selectedAccounts.length === 1
+                          ? selectedAccounts[0].customerName
+                          : `${selectedAccounts.length} cuentas seleccionadas`,
+                      pendingTotal: selectedPendingTotal,
+                      pendingOrderIds: selectedPendingOrderIds,
+                    })
+                  }
+                >
+                  <Banknote className="h-4 w-4" />
+                  Cobrar seleccionadas
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="grid gap-3 md:grid-cols-2">
-            {accounts.map((account) => (
-              <div key={account.key} className="rounded-md border bg-background p-3">
+            {accounts.map((account) => {
+              const selected = selectedAccountKeys.includes(account.key);
+              return (
+              <div
+                key={account.key}
+                className={`rounded-md border bg-background p-3 ${
+                  selected ? "border-primary ring-2 ring-primary/30" : ""
+                }`}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate font-semibold">{account.customerName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Fila {account.row} - Grupo {account.grupo}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={account.pendingTotal === 0}
+                        onClick={() => toggleSelectedAccount(account)}
+                        className={`h-5 w-5 shrink-0 rounded border text-xs font-bold ${
+                          selected
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border"
+                        } disabled:opacity-40`}
+                        aria-label={selected ? "Quitar cuenta de la seleccion" : "Seleccionar cuenta"}
+                      >
+                        {selected ? "✓" : ""}
+                      </button>
+                      <p className="truncate font-semibold">{account.customerName}</p>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {account.locations.join(" | ")}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
@@ -421,10 +520,13 @@ export function OrdersRegistry() {
                   className="mt-3 w-full"
                   variant={account.pendingTotal > 0 ? "default" : "outline"}
                   disabled={account.pendingTotal === 0}
-                  onClick={() => {
-                    setPaymentTarget(account);
-                    setPaymentError(null);
-                  }}
+                  onClick={() =>
+                    openPayment({
+                      label: account.customerName,
+                      pendingTotal: account.pendingTotal,
+                      pendingOrderIds: account.pendingOrderIds,
+                    })
+                  }
                 >
                   {account.pendingTotal > 0 ? (
                     <>
@@ -439,7 +541,8 @@ export function OrdersRegistry() {
                   )}
                 </Button>
               </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -510,7 +613,7 @@ export function OrdersRegistry() {
         title="Cobrar en efectivo"
         description={
           paymentTarget
-            ? `Se registrara el pago en efectivo de ${formatQ(paymentTarget.pendingTotal)} para ${paymentTarget.customerName}.`
+            ? `Se registrara el pago en efectivo de ${formatQ(paymentTarget.pendingTotal)} para ${paymentTarget.label}.`
             : ""
         }
         confirmLabel="Confirmar cobro"
