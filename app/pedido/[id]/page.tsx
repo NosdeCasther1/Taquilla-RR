@@ -3,9 +3,10 @@
 import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
-import { Users, StickyNote, XCircle, History } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { History, StickyNote, Users, XCircle } from "lucide-react";
+import { ActionDialog } from "@/components/ui/action-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MenuImage } from "@/components/menu-image";
 import { formatQ } from "@/lib/utils";
@@ -44,6 +45,8 @@ function statusBadge(status: OrderReceipt["status"]) {
 
 export default function PedidoReciboPage({ params }: { params: { id: string } }) {
   const [cancelling, setCancelling] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const { data: order, error, isLoading, mutate } = useSWR<OrderReceipt>(
     `/api/orders/${params.id}`,
@@ -52,19 +55,27 @@ export default function PedidoReciboPage({ params }: { params: { id: string } })
   );
 
   async function handleCancel() {
-    if (!confirm("¿Seguro que quieres anular este pedido?")) return;
     setCancelling(true);
+    setCancelError(null);
     const res = await fetch(`/api/orders/${params.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "CANCELADO" }),
     });
     setCancelling(false);
-    if (res.ok) mutate();
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      setCancelError(body?.error ?? "No se pudo anular el pedido");
+      return;
+    }
+
+    setCancelDialogOpen(false);
+    mutate();
   }
 
   if (isLoading) {
-    return <p className="py-8 text-center text-sm text-muted-foreground">Cargando pedido…</p>;
+    return <p className="py-8 text-center text-sm text-muted-foreground">Cargando pedido...</p>;
   }
 
   if (error || !order?.id) {
@@ -107,7 +118,7 @@ export default function PedidoReciboPage({ params }: { params: { id: string } })
           <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2">
             <Users className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-semibold">
-              Fila {order.row} · Grupo {order.grupo}
+              Fila {order.row} - Grupo {order.grupo}
             </span>
           </div>
 
@@ -120,25 +131,28 @@ export default function PedidoReciboPage({ params }: { params: { id: string } })
 
           <p className="text-xs text-muted-foreground">
             Pedido a las {hora(order.createdAt)}
-            {order.deliveredAt && ` · entregado ${hora(order.deliveredAt)}`}
-            {order.cancelledAt && ` · cancelado ${hora(order.cancelledAt)}`}
+            {order.deliveredAt && ` - entregado ${hora(order.deliveredAt)}`}
+            {order.cancelledAt && ` - cancelado ${hora(order.cancelledAt)}`}
           </p>
 
           {order.status === "PENDIENTE" && (
             <Button
               variant="outline"
               className="w-full text-destructive hover:text-destructive"
-              onClick={handleCancel}
+              onClick={() => {
+                setCancelDialogOpen(true);
+                setCancelError(null);
+              }}
               disabled={cancelling}
             >
               <XCircle className="h-4 w-4" />
-              {cancelling ? "Anulando…" : "Anular pedido"}
+              {cancelling ? "Anulando..." : "Anular pedido"}
             </Button>
           )}
 
           {order.status === "PENDIENTE" && (
             <p className="text-center text-xs text-muted-foreground">
-              El estado se actualiza automáticamente.
+              El estado se actualiza automaticamente.
             </p>
           )}
         </CardContent>
@@ -155,6 +169,22 @@ export default function PedidoReciboPage({ params }: { params: { id: string } })
           <Link href="/ordenar">Hacer otro pedido</Link>
         </Button>
       </div>
+
+      <ActionDialog
+        open={cancelDialogOpen}
+        title="Anular pedido"
+        description="Este pedido quedara marcado como cancelado y ya no contara como venta."
+        confirmLabel="Anular pedido"
+        busyLabel="Anulando..."
+        busy={cancelling}
+        error={cancelError}
+        variant="destructive"
+        onOpenChange={(open) => {
+          setCancelDialogOpen(open);
+          if (!open) setCancelError(null);
+        }}
+        onConfirm={handleCancel}
+      />
     </div>
   );
 }

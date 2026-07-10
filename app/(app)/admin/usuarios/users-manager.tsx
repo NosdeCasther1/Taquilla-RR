@@ -3,6 +3,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { Pencil, Plus, ShieldCheck, Trash2, UserCog, X } from "lucide-react";
+import { ActionDialog } from "@/components/ui/action-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +45,9 @@ export function UsersManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<StaffUser | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const editing = editingId !== null;
   const canManageUsers = currentUserRole === "ADMIN";
@@ -94,15 +98,21 @@ export function UsersManager({
     mutate();
   }
 
-  async function handleDelete(user: StaffUser) {
-    if (!confirm(`Eliminar "${user.name}"? Esta accion no se puede deshacer.`)) return;
+  async function handleDelete() {
+    if (!deleteTarget) return;
 
-    const res = await fetch(`/api/users/${user.id}`, { method: "DELETE" });
+    setDeleting(true);
+    setDeleteError(null);
+    const res = await fetch(`/api/users/${deleteTarget.id}`, { method: "DELETE" });
+    setDeleting(false);
+
     if (!res.ok) {
       const body = await res.json().catch(() => null);
-      alert(body?.error ?? "No se pudo eliminar el usuario");
+      setDeleteError(body?.error ?? "No se pudo eliminar el usuario");
       return;
     }
+
+    setDeleteTarget(null);
     mutate();
   }
 
@@ -115,72 +125,72 @@ export function UsersManager({
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nombre</Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ej. Ana Perez"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Correo</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                autoCapitalize="none"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="staff@taquilla.local"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">
-                {editing ? "Nueva contrasena" : "Contrasena"}
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={editing ? "Dejar en blanco para no cambiar" : "Minimo 6 caracteres"}
-                required={!editing}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Rol</Label>
-              <Select value={role} onValueChange={(value: Role) => setRole(value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="STAFF">Staff</SelectItem>
-                  <SelectItem value="ADMIN">Administrador</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {error && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </p>
-            )}
-            <div className="flex gap-2">
-              <Button type="submit" className="flex-1" disabled={saving}>
-                {editing ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                {saving ? "Guardando..." : editing ? "Guardar cambios" : "Agregar usuario"}
-              </Button>
-              {editing && (
-                <Button type="button" variant="outline" onClick={resetForm}>
-                  <X className="h-4 w-4" />
-                  Cancelar
-                </Button>
+              <div className="space-y-2">
+                <Label htmlFor="name">Nombre</Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Ej. Ana Perez"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Correo</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="staff@taquilla.local"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">
+                  {editing ? "Nueva contrasena" : "Contrasena"}
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={editing ? "Dejar en blanco para no cambiar" : "Minimo 6 caracteres"}
+                  required={!editing}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Rol</Label>
+                <Select value={role} onValueChange={(value: Role) => setRole(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="STAFF">Staff</SelectItem>
+                    <SelectItem value="ADMIN">Administrador</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {error && (
+                <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {error}
+                </p>
               )}
-            </div>
+              <div className="flex gap-2">
+                <Button type="submit" className="flex-1" disabled={saving}>
+                  {editing ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  {saving ? "Guardando..." : editing ? "Guardar cambios" : "Agregar usuario"}
+                </Button>
+                {editing && (
+                  <Button type="button" variant="outline" onClick={resetForm}>
+                    <X className="h-4 w-4" />
+                    Cancelar
+                  </Button>
+                )}
+              </div>
             </form>
           </CardContent>
         </Card>
@@ -234,7 +244,10 @@ export function UsersManager({
                         size="sm"
                         variant="outline"
                         className="text-destructive hover:text-destructive"
-                        onClick={() => handleDelete(user)}
+                        onClick={() => {
+                          setDeleteTarget(user);
+                          setDeleteError(null);
+                        }}
                         disabled={isCurrent}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -247,6 +260,28 @@ export function UsersManager({
           </ul>
         </CardContent>
       </Card>
+
+      <ActionDialog
+        open={!!deleteTarget}
+        title="Eliminar usuario"
+        description={
+          deleteTarget
+            ? `Se eliminara "${deleteTarget.name}". Esta accion no se puede deshacer.`
+            : ""
+        }
+        confirmLabel="Eliminar"
+        busyLabel="Eliminando..."
+        busy={deleting}
+        error={deleteError}
+        variant="destructive"
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }
+        }}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

@@ -3,11 +3,12 @@
 import { useRef, useState } from "react";
 import useSWR from "swr";
 import { ImagePlus, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ActionDialog } from "@/components/ui/action-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MenuImage } from "@/components/menu-image";
 import { fileToDataUrl } from "@/lib/image";
 import { formatQ } from "@/lib/utils";
@@ -35,6 +36,9 @@ export function MenusManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Menu | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const editing = editingId !== null;
 
@@ -83,7 +87,6 @@ export function MenusManager() {
       description,
       price: Number(price),
     };
-    // Al editar sin cambiar imagen, no reenviar el data URL enorme.
     if (!editing || imageChanged) {
       payload.imageUrl = imageUrl;
     }
@@ -99,10 +102,10 @@ export function MenusManager() {
     if (!res.ok) {
       const body = await res.json().catch(() => null);
       if (res.status === 413) {
-        setError("La imagen es demasiado grande. Prueba con una foto más pequeña.");
+        setError("La imagen es demasiado grande. Prueba con una foto mas pequena.");
         return;
       }
-      setError(body?.error ?? `No se pudo guardar el menú (${res.status})`);
+      setError(body?.error ?? `No se pudo guardar el menu (${res.status})`);
       return;
     }
 
@@ -119,15 +122,21 @@ export function MenusManager() {
     mutate();
   }
 
-  async function handleDelete(menu: Menu) {
-    if (!confirm(`¿Eliminar "${menu.name}"? Esta acción no se puede deshacer.`)) return;
+  async function handleDelete() {
+    if (!deleteTarget) return;
 
-    const res = await fetch(`/api/menus/${menu.id}`, { method: "DELETE" });
+    setDeleting(true);
+    setDeleteError(null);
+    const res = await fetch(`/api/menus/${deleteTarget.id}`, { method: "DELETE" });
+    setDeleting(false);
+
     if (!res.ok) {
       const body = await res.json().catch(() => null);
-      alert(body?.error ?? "No se pudo eliminar el menú");
+      setDeleteError(body?.error ?? "No se pudo eliminar el menu");
       return;
     }
+
+    setDeleteTarget(null);
     mutate();
   }
 
@@ -135,7 +144,7 @@ export function MenusManager() {
     <div className="space-y-4 lg:grid lg:grid-cols-[380px_1fr] lg:gap-4 lg:space-y-0">
       <Card className="lg:self-start">
         <CardHeader>
-          <CardTitle>{editing ? "Editar menú" : "Nuevo menú"}</CardTitle>
+          <CardTitle>{editing ? "Editar menu" : "Nuevo menu"}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -178,7 +187,7 @@ export function MenusManager() {
                     </Button>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    JPG, PNG o WEBP · se comprime automáticamente
+                    JPG, PNG o WEBP - se comprime automaticamente
                   </p>
                 </div>
               </div>
@@ -195,7 +204,7 @@ export function MenusManager() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="description">Descripción</Label>
+              <Label htmlFor="description">Descripcion</Label>
               <Input
                 id="description"
                 value={description}
@@ -224,12 +233,14 @@ export function MenusManager() {
               )}
             </div>
             {error && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </p>
             )}
             <div className="flex gap-2">
               <Button type="submit" className="flex-1" disabled={saving}>
                 {editing ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                {saving ? "Guardando…" : editing ? "Guardar cambios" : "Agregar menú"}
+                {saving ? "Guardando..." : editing ? "Guardar cambios" : "Agregar menu"}
               </Button>
               {editing && (
                 <Button type="button" variant="outline" onClick={cancelEdit}>
@@ -244,12 +255,12 @@ export function MenusManager() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Menús</CardTitle>
+          <CardTitle>Menus</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading && <p className="text-sm text-muted-foreground">Cargando…</p>}
+          {isLoading && <p className="text-sm text-muted-foreground">Cargando...</p>}
           {!isLoading && menus?.length === 0 && (
-            <p className="text-sm text-muted-foreground">No hay menús todavía.</p>
+            <p className="text-sm text-muted-foreground">No hay menus todavia.</p>
           )}
           <ul className="divide-y">
             {menus?.map((menu) => (
@@ -265,7 +276,7 @@ export function MenusManager() {
                       <div>
                         <p className="font-medium">{menu.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          {menu.description} · {formatQ(menu.price)}
+                          {menu.description} - {formatQ(menu.price)}
                         </p>
                       </div>
                       <Badge variant={menu.active ? "success" : "secondary"}>
@@ -284,7 +295,10 @@ export function MenusManager() {
                         size="sm"
                         variant="outline"
                         className="text-destructive hover:text-destructive"
-                        onClick={() => handleDelete(menu)}
+                        onClick={() => {
+                          setDeleteTarget(menu);
+                          setDeleteError(null);
+                        }}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -296,6 +310,28 @@ export function MenusManager() {
           </ul>
         </CardContent>
       </Card>
+
+      <ActionDialog
+        open={!!deleteTarget}
+        title="Eliminar menu"
+        description={
+          deleteTarget
+            ? `Se eliminara "${deleteTarget.name}". Esta accion no se puede deshacer.`
+            : ""
+        }
+        confirmLabel="Eliminar"
+        busyLabel="Eliminando..."
+        busy={deleting}
+        error={deleteError}
+        variant="destructive"
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }
+        }}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }
