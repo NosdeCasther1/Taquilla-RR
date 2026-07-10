@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import useSWR from "swr";
-import { Check, CheckCircle2, X } from "lucide-react";
+import { Check, CheckCircle2, Lock, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,13 @@ type OrderFormProps = {
   onSubmitted?: (data: OrderFormSuccess) => void;
 };
 
+type OperationStatus = {
+  open: boolean;
+  activeMenus: number;
+  pendingOrders: number;
+  updatedAt: string | null;
+};
+
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function OrderForm({
@@ -50,6 +57,9 @@ export function OrderForm({
   onSubmitted,
 }: OrderFormProps) {
   const { data: menus, isLoading } = useSWR<MenuOption[]>("/api/menus?active=1", fetcher);
+  const { data: operation } = useSWR<OperationStatus>("/api/operation", fetcher, {
+    refreshInterval: 8000,
+  });
 
   const [menuIds, setMenuIds] = useState<string[]>([]);
   const [customerName, setCustomerName] = useState("");
@@ -67,6 +77,7 @@ export function OrderForm({
   const totalPrice = selectedMenus.reduce((sum, menu) => sum + menu.price, 0);
   const grupoNum = Number(grupo);
   const isFormValid =
+    operation?.open === true &&
     menuIds.length > 0 &&
     customerName.trim().length > 0 &&
     row.trim().length > 0 &&
@@ -85,6 +96,11 @@ export function OrderForm({
     e.preventDefault();
     setError(null);
     setSuccess(null);
+
+    if (!operation?.open) {
+      setError("La taquilla esta cerrada. No se estan recibiendo pedidos.");
+      return;
+    }
 
     if (menuIds.length === 0) {
       setError("Selecciona al menos un combo");
@@ -166,6 +182,18 @@ export function OrderForm({
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {operation?.open === false && (
+            <div className="flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive">
+              <Lock className="mt-0.5 h-5 w-5 shrink-0" />
+              <div>
+                <p className="font-semibold">Taquilla cerrada</p>
+                <p className="text-sm">
+                  En este momento no se estan recibiendo pedidos nuevos.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label>
               Elige tus combos <span className="text-destructive">*</span>
@@ -186,8 +214,10 @@ export function OrderForm({
                     key={menu.id}
                     type="button"
                     onClick={() => toggleMenu(menu.id)}
+                    disabled={operation?.open === false}
                     className={cn(
                       "relative overflow-hidden rounded-xl border bg-card text-left transition-all",
+                      operation?.open === false && "cursor-not-allowed opacity-60",
                       selected
                         ? "border-primary ring-2 ring-primary/30"
                         : "border-border hover:border-primary/40"
@@ -230,6 +260,7 @@ export function OrderForm({
                       size="sm"
                       className="shrink-0 text-muted-foreground"
                       onClick={() => toggleMenu(menu.id)}
+                      disabled={operation?.open === false}
                     >
                       <X className="h-4 w-4" />
                       Quitar
@@ -307,7 +338,9 @@ export function OrderForm({
           )}
 
           <Button type="submit" className="w-full" size="lg" disabled={saving || !isFormValid}>
-            {saving
+            {operation?.open === false
+              ? "Taquilla cerrada"
+              : saving
               ? "Enviando..."
               : menuIds.length > 1
                 ? `${submitLabel} (${menuIds.length})`

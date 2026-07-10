@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { getDateRangeFromRequest } from "@/lib/date-range";
+import { getOperationStatus } from "@/lib/operation";
 import { prisma } from "@/lib/prisma";
 
 const orderSchema = z
@@ -76,6 +77,14 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const session = await auth();
+  const operation = await getOperationStatus();
+
+  if (!operation.open) {
+    return NextResponse.json(
+      { error: "La taquilla esta cerrada. No se estan recibiendo pedidos." },
+      { status: 403 }
+    );
+  }
 
   const parsed = orderSchema.safeParse(await request.json());
   if (!parsed.success) {

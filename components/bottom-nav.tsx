@@ -6,6 +6,7 @@ import {
   ClipboardList,
   Info,
   ListOrdered,
+  Power,
   PlusCircle,
   Users,
   UtensilsCrossed,
@@ -18,6 +19,7 @@ const items = [
 ];
 
 const adminItems = [
+  { href: "/admin/operacion", label: "Operacion", icon: Power },
   { href: "/admin/menus", label: "Menus", icon: UtensilsCrossed },
   { href: "/admin/pedidos", label: "Registro", icon: ListOrdered },
   { href: "/admin/usuarios", label: "Usuarios", icon: Users },

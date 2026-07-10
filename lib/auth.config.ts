@@ -48,6 +48,11 @@ export const authConfig = {
         return true;
       }
 
+      // Estado publico de apertura/cierre de taquilla
+      if (pathname === "/api/operation" && method === "GET") {
+        return true;
+      }
+
       // Ver y anular pedido propio desde /pedido/[id]
       if (/^\/api\/orders\/[^/]+$/.test(pathname) && (method === "GET" || method === "PATCH")) {
         return true;
