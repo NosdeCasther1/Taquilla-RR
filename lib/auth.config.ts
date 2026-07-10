@@ -71,6 +71,13 @@ export const authConfig = {
         return false;
       }
 
+      if (
+        auth.user.role !== "ADMIN" &&
+        (pathname === "/resumen" || pathname.startsWith("/admin"))
+      ) {
+        return Response.redirect(new URL("/pedidos", request.nextUrl));
+      }
+
       return true;
     },
     jwt({ token, user }) {

@@ -26,6 +26,9 @@ export async function GET(request: Request) {
     if (!session?.user) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
+    if (session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Requiere rol ADMIN" }, { status: 403 });
+    }
   }
   const menus = await prisma.menu.findMany({
     where: onlyActive ? { active: true } : undefined,
@@ -42,6 +45,9 @@ export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+  if (session.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Requiere rol ADMIN" }, { status: 403 });
   }
   const parsed = menuSchema.safeParse(await request.json());
   if (!parsed.success) {

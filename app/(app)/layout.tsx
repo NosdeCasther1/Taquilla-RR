@@ -27,7 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </header>
       <main className="mx-auto max-w-md px-4 pb-24 pt-4 md:max-w-5xl">{children}</main>
-      <BottomNav />
+      <BottomNav isAdmin={session.user.role === "ADMIN"} />
     </div>
   );
 }

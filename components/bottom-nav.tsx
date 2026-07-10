@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChart3,
   ClipboardList,
   Info,
   ListOrdered,
@@ -16,7 +15,6 @@ import { cn } from "@/lib/utils";
 const items = [
   { href: "/pedido", label: "Nuevo", icon: PlusCircle },
   { href: "/pedidos", label: "Pedidos", icon: ClipboardList },
-  { href: "/resumen", label: "Resumen", icon: BarChart3 },
 ];
 
 const adminItems = [
@@ -26,9 +24,9 @@ const adminItems = [
   { href: "/acerca", label: "Acerca", icon: Info },
 ];
 
-export function BottomNav() {
+export function BottomNav({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
-  const navItems = [...items, ...adminItems];
+  const navItems = isAdmin ? [...items, ...adminItems] : items;
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-card pb-[env(safe-area-inset-bottom)]">

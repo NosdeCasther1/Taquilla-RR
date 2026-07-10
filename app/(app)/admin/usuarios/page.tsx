@@ -4,7 +4,7 @@ import { UsersManager } from "./users-manager";
 
 export default async function AdminUsersPage() {
   const session = await auth();
-  if (!session?.user) {
+  if (session?.user.role !== "ADMIN") {
     redirect("/pedidos");
   }
 

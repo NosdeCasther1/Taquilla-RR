@@ -31,7 +31,7 @@ async function requireAdmin() {
 }
 
 export async function GET() {
-  const gate = await requireStaff();
+  const gate = await requireAdmin();
   if ("response" in gate) return gate.response;
 
   const users = await prisma.staffUser.findMany({
